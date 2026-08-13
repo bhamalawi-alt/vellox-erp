@@ -1,6 +1,6 @@
 ### Vellox Agency
 
-Open source ERP for media agencies
+Open source ERP for media agencies. Part of [Vellox ERP Next](https://github.com/bhamalawi-alt/Vellox-ERP-Next).
 
 ### Installation
 
@@ -8,7 +8,7 @@ You can install this app using the [bench](https://github.com/frappe/bench) CLI:
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
-bench get-app $URL_OF_THIS_REPO --branch develop
+bench get-app https://github.com/bhamalawi-alt/Vellox-ERP-Next --branch version-15
 bench install-app vellox_agency
 ```
 
