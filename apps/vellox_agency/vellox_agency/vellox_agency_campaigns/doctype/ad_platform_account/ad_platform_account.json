@@ -1,0 +1,118 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "account_name",
+  "platform",
+  "client_account",
+  "account_status",
+  "sb_access",
+  "ad_account_id",
+  "login_email",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "account_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Account Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "platform",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Platform",
+   "options": "Meta (Facebook/Instagram)\nGoogle Ads\nTikTok\nLinkedIn\nYouTube\nProgrammatic\nOther"
+  },
+  {
+   "fieldname": "client_account",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Client Account",
+   "options": "Client Account"
+  },
+  {
+   "fieldname": "account_status",
+   "fieldtype": "Select",
+   "default": "Active",
+   "in_list_view": 1,
+   "label": "Account Status",
+   "options": "Active\nPaused\nDisconnected\nRevoked"
+  },
+  {
+   "fieldname": "sb_access",
+   "fieldtype": "Section Break",
+   "label": "Access"
+  },
+  {
+   "fieldname": "ad_account_id",
+   "fieldtype": "Data",
+   "label": "Ad Account ID"
+  },
+  {
+   "fieldname": "login_email",
+   "fieldtype": "Data",
+   "label": "Login Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency Campaigns",
+ "name": "Ad Platform Account",
+ "naming_rule": "By fieldname",
+ "naming_rule_field": "account_name",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Staff",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

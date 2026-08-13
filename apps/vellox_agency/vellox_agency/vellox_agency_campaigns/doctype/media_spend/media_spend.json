@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "month",
+  "platform",
+  "spend",
+  "impressions",
+  "clicks",
+  "conversions"
+ ],
+ "fields": [
+  {
+   "fieldname": "month",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Month"
+  },
+  {
+   "fieldname": "platform",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Platform",
+   "options": "Meta (Facebook/Instagram)\nGoogle Ads\nTikTok\nLinkedIn\nYouTube\nProgrammatic\nOther"
+  },
+  {
+   "fieldname": "spend",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Spend"
+  },
+  {
+   "fieldname": "impressions",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Impressions"
+  },
+  {
+   "fieldname": "clicks",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Clicks"
+  },
+  {
+   "fieldname": "conversions",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Conversions"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency Campaigns",
+ "name": "Media Spend",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

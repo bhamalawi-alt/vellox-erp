@@ -1,0 +1,148 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "deliverable_name",
+  "project",
+  "client_account",
+  "deliverable_type",
+  "status",
+  "due_date",
+  "assigned_to",
+  "sb_description",
+  "description",
+  "sb_revisions",
+  "current_revision",
+  "approval_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "deliverable_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Deliverable Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Project",
+   "options": "Agency Project",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_account",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Client Account",
+   "options": "Client Account"
+  },
+  {
+   "fieldname": "deliverable_type",
+   "fieldtype": "Select",
+   "default": "Design",
+   "in_list_view": 1,
+   "label": "Deliverable Type",
+   "options": "Strategy\nDesign\nVisual Content\nWeb\neCommerce\nMobile App\nCopy\nOther"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "default": "Not Started",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Not Started\nIn Progress\nIn Review\nApproved\nRejected\nDelivered\nCancelled"
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due Date"
+  },
+  {
+   "fieldname": "assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "User"
+  },
+  {
+   "fieldname": "sb_description",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "sb_revisions",
+   "fieldtype": "Section Break",
+   "label": "Revisions"
+  },
+  {
+   "fieldname": "current_revision",
+   "fieldtype": "Data",
+   "label": "Current Revision"
+  },
+  {
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval Status",
+   "options": "Pending\nApproved\nRejected"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency Projects",
+ "name": "Deliverable",
+ "naming_rule": "Expression (old style)",
+ "naming_series": "DEL-.YYYY.-",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Staff",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

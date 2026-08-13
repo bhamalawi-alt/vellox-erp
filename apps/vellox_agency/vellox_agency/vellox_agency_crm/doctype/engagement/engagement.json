@@ -1,0 +1,158 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "client_account",
+  "engagement_title",
+  "engagement_type",
+  "status",
+  "start_date",
+  "end_date",
+  "sb_billing",
+  "billing_terms",
+  "retainer_amount",
+  "currency",
+  "sb_team",
+  "engagement_manager",
+  "sb_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "client_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Client Account",
+   "options": "Client Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "engagement_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Engagement Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "engagement_type",
+   "fieldtype": "Select",
+   "default": "Retainer",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Engagement Type",
+   "options": "Retainer\nProject Based\nHybrid"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "default": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Lead\nActive\nPaused\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "fieldname": "sb_billing",
+   "fieldtype": "Section Break",
+   "label": "Billing"
+  },
+  {
+   "fieldname": "billing_terms",
+   "fieldtype": "Text",
+   "label": "Billing Terms"
+  },
+  {
+   "fieldname": "retainer_amount",
+   "fieldtype": "Currency",
+   "label": "Retainer Amount",
+   "options": "currency"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "sb_team",
+   "fieldtype": "Section Break",
+   "label": "Team"
+  },
+  {
+   "fieldname": "engagement_manager",
+   "fieldtype": "Link",
+   "label": "Engagement Manager",
+   "options": "User"
+  },
+  {
+   "fieldname": "sb_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency CRM",
+ "name": "Engagement",
+ "naming_rule": "Expression (old style)",
+ "naming_series": "ENG-.YYYY.-",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Staff",
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

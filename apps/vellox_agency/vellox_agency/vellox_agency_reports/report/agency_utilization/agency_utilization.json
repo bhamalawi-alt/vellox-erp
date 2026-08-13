@@ -1,0 +1,26 @@
+{
+ "add_total_row": 1,
+ "apply_user_permissions": 1,
+ "creation": "2026-08-13 00:00:00.000000",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "idx": 0,
+ "is_standard": "Yes",
+ "modified": "2026-08-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency Reports",
+ "name": "Agency Utilization",
+ "owner": "Administrator",
+ "ref_doctype": "Agency Timesheet",
+ "report_name": "Agency Utilization",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Agency Manager"
+  }
+ ]
+}

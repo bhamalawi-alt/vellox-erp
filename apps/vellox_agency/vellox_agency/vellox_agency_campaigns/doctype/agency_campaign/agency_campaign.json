@@ -1,0 +1,229 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "campaign_name",
+  "client_account",
+  "engagement",
+  "project",
+  "campaign_status",
+  "start_date",
+  "end_date",
+  "sb_objectives",
+  "objective",
+  "target_audience",
+  "sb_media",
+  "media_platform",
+  "budget",
+  "currency",
+  "sb_placements",
+  "placements",
+  "sb_spends",
+  "media_spends",
+  "sb_performance",
+  "impressions",
+  "clicks",
+  "conversions",
+  "roas",
+  "sb_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "campaign_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Campaign Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Client Account",
+   "options": "Client Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "engagement",
+   "fieldtype": "Link",
+   "label": "Engagement",
+   "options": "Engagement"
+  },
+  {
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "label": "Project",
+   "options": "Agency Project"
+  },
+  {
+   "fieldname": "campaign_status",
+   "fieldtype": "Select",
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Campaign Status",
+   "options": "Draft\nIn Production\nLive\nPaused\nCompleted\nArchived"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "fieldname": "sb_objectives",
+   "fieldtype": "Section Break",
+   "label": "Objectives"
+  },
+  {
+   "fieldname": "objective",
+   "fieldtype": "Select",
+   "label": "Objective",
+   "options": "Brand Awareness\nLead Generation\nConversions\nEngagement\nTraffic\nOther"
+  },
+  {
+   "fieldname": "target_audience",
+   "fieldtype": "Small Text",
+   "label": "Target Audience"
+  },
+  {
+   "fieldname": "sb_media",
+   "fieldtype": "Section Break",
+   "label": "Media Plan"
+  },
+  {
+   "fieldname": "media_platform",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Media Platform",
+   "options": "Meta (Facebook/Instagram)\nGoogle Ads\nTikTok\nLinkedIn\nYouTube\nProgrammatic\nOther"
+  },
+  {
+   "fieldname": "budget",
+   "fieldtype": "Currency",
+   "label": "Budget",
+   "options": "currency"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "sb_placements",
+   "fieldtype": "Section Break",
+   "label": "Placements"
+  },
+  {
+   "fieldname": "placements",
+   "fieldtype": "Table",
+   "label": "Placements",
+   "options": "Placement"
+  },
+  {
+   "fieldname": "sb_spends",
+   "fieldtype": "Section Break",
+   "label": "Media Spends"
+  },
+  {
+   "fieldname": "media_spends",
+   "fieldtype": "Table",
+   "label": "Media Spends",
+   "options": "Media Spend"
+  },
+  {
+   "fieldname": "sb_performance",
+   "fieldtype": "Section Break",
+   "label": "Performance"
+  },
+  {
+   "fieldname": "impressions",
+   "fieldtype": "Int",
+   "label": "Impressions"
+  },
+  {
+   "fieldname": "clicks",
+   "fieldtype": "Int",
+   "label": "Clicks"
+  },
+  {
+   "fieldname": "conversions",
+   "fieldtype": "Int",
+   "label": "Conversions"
+  },
+  {
+   "fieldname": "roas",
+   "fieldtype": "Float",
+   "label": "ROAS",
+   "precision": "2"
+  },
+  {
+   "fieldname": "sb_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency Campaigns",
+ "name": "Agency Campaign",
+ "naming_rule": "Expression (old style)",
+ "naming_series": "CMP-.YYYY.-",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Staff",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

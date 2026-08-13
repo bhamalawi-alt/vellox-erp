@@ -1,0 +1,63 @@
+{
+ "actions": [],
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "placement_name",
+  "ad_platform_account",
+  "placement_type",
+  "budget",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "placement_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Placement Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ad_platform_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Ad Platform Account",
+   "options": "Ad Platform Account"
+  },
+  {
+   "fieldname": "placement_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Placement Type",
+   "options": "Feed\nStories\nReels\nSearch\nDisplay\nVideo\nInfluencer\nOther"
+  },
+  {
+   "fieldname": "budget",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Budget"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "default": "Active",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nPaused\nCompleted"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency Campaigns",
+ "name": "Placement",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

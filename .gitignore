@@ -1,0 +1,28 @@
+# Bench / Frappe environment (not part of the repo)
+/bench/
+/sites/
+dump.rdb
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+env/
+.venv/
+
+# Node
+node_modules/
+dist/
+*.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Frappe runtime
+sites/assets/
+.remote/

@@ -1,0 +1,155 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "timesheet_title",
+  "employee",
+  "timesheet_date",
+  "status",
+  "project",
+  "client_account",
+  "sb_entries",
+  "timesheet_entries",
+  "sb_totals",
+  "total_hours",
+  "billable_hours",
+  "sb_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "timesheet_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Timesheet Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "timesheet_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Timesheet Date"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nSubmitted\nApproved\nRejected\nBilled"
+  },
+  {
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Project",
+   "options": "Agency Project"
+  },
+  {
+   "fieldname": "client_account",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Client Account",
+   "options": "Client Account"
+  },
+  {
+   "fieldname": "sb_entries",
+   "fieldtype": "Section Break",
+   "label": "Time Entries"
+  },
+  {
+   "fieldname": "timesheet_entries",
+   "fieldtype": "Table",
+   "label": "Timesheet Entries",
+   "options": "Timesheet Entry"
+  },
+  {
+   "fieldname": "sb_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "total_hours",
+   "fieldtype": "Float",
+   "label": "Total Hours",
+   "read_only": 1
+  },
+  {
+   "fieldname": "billable_hours",
+   "fieldtype": "Float",
+   "label": "Billable Hours",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency HR",
+ "name": "Agency Timesheet",
+ "naming_rule": "Expression (old style)",
+ "naming_series": "TS-.YYYY.-",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agency Staff",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
