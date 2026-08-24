@@ -4,6 +4,8 @@
 import frappe
 from frappe import _
 
+from vellox_agency.setup.offer_builder import setup_offer_builder
+
 AGENCY_ROLES = [
 	{
 		"role_name": "Agency Manager",
@@ -28,6 +30,7 @@ AGENCY_ROLES = [
 def after_install():
 	for role in AGENCY_ROLES:
 		create_role(role)
+	setup_offer_builder()
 
 
 def create_role(role_data):
