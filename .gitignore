@@ -1,5 +1,7 @@
 # Bench / Frappe environment (not part of the repo)
 /bench/
+/frappe-bench/
+/.bench-venv/
 /sites/
 dump.rdb
 

@@ -34,7 +34,7 @@ cd frappe-bench
 
 # 2. Add ERPNext and this app
 bench get-app erpnext --branch version-15
-bench get-app https://github.com/bhamalawi-alt/Vellox-ERP-Next
+bench get-app https://github.com/bhamalawi-alt/vellox-erp
 bench new-site yoursite.local --install-app erpnext --install-app vellox_agency
 
 # 3. Run
@@ -46,7 +46,7 @@ The `vellox_agency` app ships inside this repo under `apps/vellox_agency/`.
 ## Repo Layout
 
 ```
-vellox-erp-next/
+vellox-erp/
 ├── apps/vellox_agency/     # the Frappe app (custom DocTypes, reports, workspace)
 ├── docs/                   # project plan + user docs
 ├── LICENSE                 # MIT

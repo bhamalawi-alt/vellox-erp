@@ -4,7 +4,7 @@
 
 - **Company:** Vellox Studio (https://www.velloxstudio.com) — business development studio
   (Brand Strategy, Identity, UX, Visual Content, Web Dev, eCommerce, Mobile Apps)
-- **Repository name:** `Vellox-ERP-Next`
+- **Repository name:** `vellox-erp`
 - **License:** MIT (open source, business-friendly)
 - **Base stack:** Frappe framework + ERPNext (Python 3.11 / MariaDB / Redis / Node)
 
@@ -79,7 +79,7 @@ Custom Frappe app: `vellox_agency`
 ## 5. Repo Layout (planned)
 
 ```
-vellox-erp-next/
+vellox-erp/
 ├── apps/
 │   └── vellox_agency/          # our Frappe app (this repo IS the app or ships it)
 │       ├── vellox_agency/
@@ -122,7 +122,7 @@ vellox-erp-next/
 
 ## 8. Immediate Next Steps (M0/M1)
 
-1. Rename repo → `Vellox-ERP-Next` (needs `gh auth login`).
+1. Keep repository metadata and documentation aligned with `bhamalawi-alt/vellox-erp`.
 2. Write `README.md` + `LICENSE` (MIT) + `.gitignore`.
 3. Install Frappe prerequisites: MariaDB 10.6, Redis, wkhtmltopdf, `bench` via pip.
 4. `bench init`, create site `vellox.localhost`, install ERPNext + create `vellox_agency` app.
