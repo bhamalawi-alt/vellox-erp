@@ -14,6 +14,23 @@ before_migrate = "vellox_agency.compatibility.validate_runtime_compatibility"
 
 after_migrate = "vellox_agency.setup.offer_builder.setup_offer_builder"
 
+# Block new use of duplicate custom ledgers; ERPNext records are authoritative.
+doc_events = {
+	doctype: {
+		"before_insert": "vellox_agency.deprecations.guard_deprecated_doctype",
+		"on_trash": "vellox_agency.deprecations.guard_deprecated_doctype",
+	}
+	for doctype in (
+		"Client Account",
+		"Agency Project",
+		"Agency Timesheet",
+		"Expense",
+		"Agency Invoice",
+		"Engagement",
+		"Retainer",
+	)
+}
+
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
 # 	{
