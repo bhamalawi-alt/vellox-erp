@@ -141,6 +141,35 @@ def setup_opportunity_pipeline() -> None:
 	frappe.db.commit()
 
 
+QUOTATION_ESTIMATE_FIELDS = [
+	{
+		"fieldname": "custom_vellox_estimate_hours",
+		"label": "Estimate Hours (role/hours/rate JSON)",
+		"fieldtype": "Small Text",
+		"insert_after": "custom_vellox_technical_proposal",
+	},
+	{
+		"fieldname": "custom_vellox_vendor_cost",
+		"label": "Vendor Cost (company currency)",
+		"fieldtype": "Currency",
+		"insert_after": "custom_vellox_estimate_hours",
+	},
+	{
+		"fieldname": "custom_vellox_estimated_margin",
+		"label": "Estimated Margin %",
+		"fieldtype": "Percent",
+		"insert_after": "custom_vellox_vendor_cost",
+		"read_only": 1,
+	},
+]
+
+
+def setup_quotation_estimate_fields() -> None:
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+	create_custom_fields({"Quotation": QUOTATION_ESTIMATE_FIELDS}, update=True)
+
+
 def _ensure_uom() -> None:
 	pass
 
