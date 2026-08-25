@@ -12,7 +12,7 @@ required_apps = ["erpnext"]
 
 before_migrate = "vellox_agency.compatibility.validate_runtime_compatibility"
 
-after_migrate = "vellox_agency.setup.offer_builder.setup_offer_builder"
+after_migrate = "vellox_agency.security.apply_baseline"
 
 # Block new use of duplicate custom ledgers; ERPNext records are authoritative.
 doc_events = {
@@ -20,6 +20,20 @@ doc_events = {
 		"before_insert": "vellox_agency.deprecations.guard_deprecated_doctype",
 		"on_trash": "vellox_agency.deprecations.guard_deprecated_doctype",
 	}
+	for doctype in (
+		"Client Account",
+		"Agency Project",
+		"Agency Timesheet",
+		"Expense",
+		"Agency Invoice",
+		"Engagement",
+		"Retainer",
+	)
+}
+
+# Server-side permission enforcement (not UI decoration) for the same ledgers.
+has_permission = {
+	doctype: "vellox_agency.security.has_deprecated_doctype_access"
 	for doctype in (
 		"Client Account",
 		"Agency Project",

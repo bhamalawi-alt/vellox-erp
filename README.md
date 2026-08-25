@@ -76,6 +76,17 @@ It builds/uses a scratch bench under `/private/tmp/vellox-clean-install-bench`,
 installs the app from the given URL, migrates, uninstalls and reinstalls the app,
 and runs the app test suite.
 
+## Security baseline
+
+`vellox_agency/security.py` defines the least-privilege role set
+(Vellox Sales / Project Manager / Team Member / Finance / Operations plus the
+legacy Agency roles) and is reapplied idempotently on install and after every
+migration. Deprecated custom ledgers are server-side read-only to management
+roles; create/write/delete/export/share are denied via permission hooks, not
+hidden in the UI. Client-level record isolation relies on standard ERPNext
+User Permissions; transactional-document scoping gaps inherent to Dynamic Link
+fields are tracked for explicit enforcement in the portal phase.
+
 ## CI and local equivalents
 
 CI (`.github/workflows/ci.yml`) runs on every push to master and every pull
