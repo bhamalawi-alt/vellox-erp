@@ -1,0 +1,7 @@
+{% set offer_heading = _("Technical and Financial Offer") %}
+{% include "vellox_agency/templates/print_formats/offer_header.html" %}
+<div class="vellox-technical-content">{{ doc.custom_vellox_technical_proposal or "" }}</div>
+<div class="vellox-page-break"></div>
+<h1>{{ _("Financial Offer") }}</h1>
+{% include "vellox_agency/templates/print_formats/financial_section.html" %}
+</div>
