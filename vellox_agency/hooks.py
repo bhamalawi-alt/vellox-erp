@@ -14,6 +14,8 @@ before_migrate = "vellox_agency.compatibility.validate_runtime_compatibility"
 
 after_migrate = "vellox_agency.security.apply_baseline"
 
+doctype_js = {"Quotation": "public/js/quotation_offer_builder.js"}
+
 # Block new use of duplicate custom ledgers; ERPNext records are authoritative.
 doc_events = {
 	doctype: {
