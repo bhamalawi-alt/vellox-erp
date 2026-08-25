@@ -1,0 +1,14 @@
+<style>{% include "vellox_agency/templates/print_formats/offer.css" %}</style>
+<div class="vellox-offer">
+	{% if letter_head %}{{ letter_head }}{% endif %}
+	<h1>{{ offer_heading }}</h1>
+	<div class="vellox-offer-meta">
+		<span><strong>{{ _("Offer") }}:</strong> {{ doc.name }}</span>
+		<span><strong>{{ _("Date") }}:</strong> {{ doc.get_formatted("transaction_date") }}</span>
+		{% if doc.valid_till %}<span><strong>{{ _("Valid Until") }}:</strong> {{ doc.get_formatted("valid_till") }}</span>{% endif %}
+	</div>
+	<div class="vellox-offer-client">
+		<strong>{{ doc.customer_name or doc.party_name }}</strong>
+		{% if doc.contact_display %}<div>{{ doc.contact_display }}</div>{% endif %}
+		{% if doc.address_display %}<div>{{ doc.address_display }}</div>{% endif %}
+	</div>
