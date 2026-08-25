@@ -44,3 +44,12 @@ class TestOfferBuilderSetup(FrappeTestCase):
 			.fieldtype,
 			"Text Editor",
 		)
+
+	def test_workspace_exposes_offers_and_services(self):
+		import frappe
+
+		workspace = frappe.get_doc("Workspace", "Vellox Agency")
+		shortcuts = {(row.label, row.link_to) for row in workspace.shortcuts}
+		links = {(row.label, row.link_to) for row in workspace.links if row.link_to}
+		self.assertIn(("Offers", "Quotation"), shortcuts)
+		self.assertIn(("Services", "Item"), links)
