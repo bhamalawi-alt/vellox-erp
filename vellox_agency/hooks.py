@@ -37,6 +37,10 @@ doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
 }
 
+doc_events["Quotation"] = {
+	"validate": "vellox_agency.estimate.apply_estimate_margin",
+}
+
 doc_events["Opportunity"] = {
 	"validate": [
 		"vellox_agency.qualification_gate.require_qualified_lead",
