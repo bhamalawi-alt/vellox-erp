@@ -38,7 +38,12 @@ doc_events["Lead"] = {
 }
 
 doc_events["Opportunity"] = {
-	"validate": "vellox_agency.qualification_gate.require_qualified_lead",
+	"validate": [
+		"vellox_agency.qualification_gate.require_qualified_lead",
+		"vellox_agency.pipeline.require_lost_reason",
+	],
+	"before_validate": "vellox_agency.pipeline.apply_stage_probability",
+	"before_save": "vellox_agency.pipeline.apply_stage_probability",
 }
 
 # Server-side permission enforcement (not UI decoration) for the same ledgers.

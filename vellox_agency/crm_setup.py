@@ -50,6 +50,15 @@ def setup_crm_intake_fields() -> None:
 	create_custom_fields(LEAD_CUSTOM_FIELDS, update=True)
 
 
+STAGE_PROBABILITY = {
+	"Prospecting": 10,
+	"Qualified": 30,
+	"Proposal Sent": 60,
+	"Negotiation": 80,
+}
+
+LOST_REASONS = ["Price", "Delay in implementation", "Chose a competitor", "Project postponed"]
+
 ASSIGNMENT_RULE = "Vellox Intake Assignment"
 FIRST_RESPONSE_HOURS = 4
 
@@ -80,6 +89,56 @@ def _ensure_sales_stage_prospecting() -> None:
 		frappe.get_doc({"doctype": "Sales Stage", "stage_name": "Prospecting"}).insert(
 			ignore_permissions=True
 		)
+
+
+def setup_opportunity_pipeline() -> None:
+	"""Stages with approved probabilities + standard lost reasons."""
+	from vellox_agency.setup.commercial import setup_commercial_foundation
+
+	setup_commercial_foundation()  # guarantees UOM/company-independent masters
+	_ensure_sales_stage_prospecting()
+	if not frappe.db.exists("Opportunity Type", "Sales"):
+		frappe.get_doc({"doctype": "Opportunity Type", "__newname": "Sales", "opportunity_type": "Sales"}).insert(
+			ignore_permissions=True
+		)
+
+	for stage in STAGE_PROBABILITY:
+		if not frappe.db.exists("Sales Stage", stage):
+			frappe.get_doc({"doctype": "Sales Stage", "stage_name": stage}).insert(
+				ignore_permissions=True
+			)
+
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+	create_custom_fields(
+		{
+			"Opportunity": [
+				{
+					"fieldname": "custom_vellox_probability",
+					"label": "Vellox Probability (%)",
+					"fieldtype": "Percent",
+					"insert_after": "sales_stage",
+				}
+			],
+			"Sales Stage": [
+				{
+					"fieldname": "custom_vellox_probability",
+					"label": "Probability (%)",
+					"fieldtype": "Percent",
+					"insert_after": "stage_name",
+				}
+			],
+		},
+		update=True,
+	)
+	for stage, prob in STAGE_PROBABILITY.items():
+		frappe.db.set_value("Sales Stage", stage, "custom_vellox_probability", prob)
+
+	for reason in LOST_REASONS:
+		if not frappe.db.exists("Opportunity Lost Reason", reason):
+			frappe.get_doc(
+				{"doctype": "Opportunity Lost Reason", "lost_reason": reason}
+			).insert(ignore_permissions=True)
+	frappe.db.commit()
 
 
 def _ensure_uom() -> None:
