@@ -10,6 +10,8 @@ app_license = "mit"
 
 required_apps = ["erpnext"]
 
+before_migrate = "vellox_agency.compatibility.validate_runtime_compatibility"
+
 after_migrate = "vellox_agency.setup.offer_builder.setup_offer_builder"
 
 # Each item in the list will be shown as an app in the apps page
