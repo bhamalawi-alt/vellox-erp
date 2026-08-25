@@ -4,6 +4,7 @@
 import frappe
 from frappe import _
 
+from vellox_agency.security import setup_roles_and_permissions
 from vellox_agency.setup.offer_builder import setup_offer_builder
 
 AGENCY_ROLES = [
@@ -31,6 +32,7 @@ def after_install():
 	for role in AGENCY_ROLES:
 		create_role(role)
 	setup_offer_builder()
+	setup_roles_and_permissions()
 
 
 def create_role(role_data):
