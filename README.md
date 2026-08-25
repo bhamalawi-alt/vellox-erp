@@ -25,6 +25,24 @@ Built for [Vellox Studio](https://www.velloxstudio.com), open for all.
 - Python 3.11 / MariaDB / Redis
 - MIT License — free to use, modify, and resell services around
 
+## Supported Versions
+
+| App | Supported range | Tested at delivery |
+|---|---|---|
+| Frappe | `>=15.118.0,<16` | 15.118.0 |
+| ERPNext | `>=15.119.1,<16` | 15.119.3 |
+
+Frappe/ERPNext **v16 is out of scope for this release.** A compatibility gate runs
+before every migration: unsupported combinations fail with an actionable message
+instead of producing a broken site.
+
+### Upgrade policy
+
+1. Stay on the `version-15` branch of both upstream apps.
+2. Before upgrading, run `scripts/verify_clean_install.sh` against the target versions.
+3. Upgrade one app at a time (`bench switch-to-branch`, `bench update`) and rerun the app test suite.
+4. v16 support will be delivered as a separate, announced release — never implicitly.
+
 ## Getting Started
 
 This repository root *is* the installable Frappe app (`vellox_agency`).
