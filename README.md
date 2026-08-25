@@ -27,36 +27,54 @@ Built for [Vellox Studio](https://www.velloxstudio.com), open for all.
 
 ## Getting Started
 
+This repository root *is* the installable Frappe app (`vellox_agency`).
+
 ```bash
-# 1. Install Frappe Bench (https://frappeframework.com/docs/v15/user/en/installation)
+# 1. Install Frappe Bench (https://frappeframework.com/docs/user/en/installation)
 bench init frappe-bench --frappe-branch version-15
 cd frappe-bench
 
 # 2. Add ERPNext and this app
 bench get-app erpnext --branch version-15
 bench get-app https://github.com/bhamalawi-alt/vellox-erp
-bench new-site yoursite.local --install-app erpnext --install-app vellox_agency
+bench new-site yoursite.local \
+    --install-app erpnext \
+    --install-app vellox_agency
 
 # 3. Run
 bench --site yoursite.local serve
 ```
 
-The `vellox_agency` app ships inside this repo under `apps/vellox_agency/`.
+### Clean-install verification
+
+A scripted proof of the flow above lives in this repository:
+
+```bash
+export MARIADB_ROOT_PASSWORD=...   # your local MariaDB root password
+scripts/verify_clean_install.sh    # optional args: [repo_url] [branch]
+```
+
+It builds/uses a scratch bench under `/private/tmp/vellox-clean-install-bench`,
+installs the app from the given URL, migrates, uninstalls and reinstalls the app,
+and runs the app test suite.
 
 ## Repo Layout
 
 ```
-vellox-erp/
-├── apps/vellox_agency/     # the Frappe app (custom DocTypes, reports, workspace)
-├── docs/                   # project plan + user docs
-├── LICENSE                 # MIT
+vellox-erp/                  # repository root = installable Frappe app
+├── vellox_agency/           # the Python package (DocTypes, reports, workspace)
+├── docs/                    # project plan, audits, specs, implementation plans
+├── scripts/                 # verification and bootstrap scripts
+├── pyproject.toml           # app packaging metadata
+├── LICENSE                  # MIT
 └── README.md
 ```
 
 ## Status
 
-MVP in active development — modules above are implemented and verified on a live
-bench (Frappe v15 + ERPNext v15). Roadmap and milestones live in `docs/PROJECT_PLAN.md`.
+MVP in active development — modules above are implemented; the audited rebuild
+toward ERPNext-backed PSA behavior is tracked in `docs/PROJECT_PLAN.md` with the
+deep audit in `docs/audits/`.
 
 ## Credits
 

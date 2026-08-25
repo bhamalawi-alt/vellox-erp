@@ -76,25 +76,23 @@ Custom Frappe app: `vellox_agency`
 
 ---
 
-## 5. Repo Layout (planned)
+## 5. Repo Layout
+
+Decision (2026-08-25): the repository root **is** the installable Frappe app.
+`bench get-app https://github.com/bhamalawi-alt/vellox-erp` works directly
+because `pyproject.toml` and the `vellox_agency` package sit at the root.
 
 ```
-vellox-erp/
-├── apps/
-│   └── vellox_agency/          # our Frappe app (this repo IS the app or ships it)
-│       ├── vellox_agency/
-│       │   ├── doctypes/       # all custom DocTypes
-│       │   └── ...
-│       └── ...
-├── docs/                       # this plan + user docs
-├── docker/                     # compose + deploy config
-├── scripts/                    # bench bootstrap, seed demo data
+vellox-erp/                     # repository root = installable Frappe app
+├── vellox_agency/              # Python package: DocTypes, reports, workspace, setup
+├── docs/                       # project plan, audits, specs, implementation plans
+├── scripts/                    # clean-install verification and bootstrap scripts
+├── pyproject.toml              # packaging metadata (flit_core)
 ├── LICENSE                     # MIT
-└── README.md                   # public-facing
+└── README.md                   # public-facing install + feature docs
 ```
 
-> Decision needed: this repo will hold the custom app + docs. ERPNext/Frappe itself
-> stays a standard pip dependency (via bench), so we never fork the core.
+> ERPNext/Frappe itself stays a standard pip dependency (via bench), so we never fork the core.
 
 ---
 
