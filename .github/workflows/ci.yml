@@ -50,6 +50,13 @@ jobs:
           docker restart ${{ job.services.mariadb.id }}
           sleep 8
 
+      # Local equivalent: brew services start redis
+      - name: Install Redis
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y redis-server
+          redis-cli ping
+
       - name: Install bench
         run: pip install frappe-bench
 
@@ -64,6 +71,14 @@ jobs:
         run: |
           bench get-app erpnext --branch version-15
           bench get-app "$GITHUB_WORKSPACE"
+
+      # Local equivalent: the bench redis instances started alongside `bench start`
+      - name: Start bench Redis instances
+        run: |
+          redis-server --port 11000 --daemonize yes
+          redis-server --port 13000 --daemonize yes
+          redis-cli -p 11000 ping
+          redis-cli -p 13000 ping
 
       - name: Create clean test site with deterministic fixtures only
         working-directory: frappe-bench
