@@ -90,13 +90,7 @@ echo "uninstall/reinstall OK"
 
 echo "== 6/6 app test suite =="
 "$BENCH" --site "$SITE" set-config allow_tests true
-# Committed behavior must pass (fatal).
-"$BENCH" --site "$SITE" run-tests --app vellox_agency \
-	--module vellox_agency.tests.test_offer_builder_setup
-# Full suite is reported but non-fatal while offer-builder tasks are
-# intentionally RED (TDD); [P1-15] acceptance flips this to fatal.
-"$BENCH" --site "$SITE" run-tests --app vellox_agency || \
-	echo "WARNING: full suite has intentionally-RED offer-builder tests"
+"$BENCH" --site "$SITE" run-tests --app vellox_agency
 
 echo ""
 echo "CLEAN INSTALL VERIFICATION PASSED"

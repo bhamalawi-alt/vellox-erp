@@ -108,14 +108,9 @@ jobs:
           find vellox_agency/tests/js -name "*.js" -print0 | xargs -0 -n1 node --test
 
       # Local equivalent: bench --site vellox.localhost run-tests --app vellox_agency
-      # Committed-behavior modules are enforced here. The intentionally RED
-      # offer-builder TDD placeholders are added once implemented ([P1-15]
-      # flips this to the full suite).
-      - name: Frappe tests (committed behavior modules)
+      - name: Frappe tests (full app suite)
         working-directory: frappe-bench
-        run: |
-          bench --site ci.localhost run-tests --app vellox_agency --module vellox_agency.tests.test_offer_builder_setup
-          bench --site ci.localhost run-tests --app vellox_agency --module vellox_agency.tests.test_compatibility
+        run: bench --site ci.localhost run-tests --app vellox_agency
 
       - name: Whitespace check
         run: git diff --check
