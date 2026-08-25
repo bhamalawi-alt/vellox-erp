@@ -27,3 +27,12 @@ class TestRuntimeCompatibility(FrappeTestCase):
 		with mock.patch.dict(compatibility._installed_versions, fake):
 			with self.assertRaisesRegex(frappe.exceptions.ValidationError, r"15\.119\.1"):
 				compatibility.validate_runtime_compatibility()
+
+
+def test_deliberate_ci_failure_probe():
+	assert False, "deliberate failure: proving CI catches broken tests"
+
+
+class TestDeliberateProbe(FrappeTestCase):
+	def test_ci_enforcement_probe(self):
+		self.fail("deliberate failure: proving CI catches broken tests")

@@ -1,0 +1,121 @@
+name: Vellox ERP CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Install, migrate, test (Frappe v15)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Local equivalent: brew services start mariadb@10.6 plus
+      # /usr/local/etc/my.cnf.d/frappe.cnf charset settings.
+      - name: Tune MariaDB for Frappe
+        run: |
+          docker exec ${{ job.services.mariadb.id }} bash -c \
+            'printf "[mysqld]\ncharacter-set-client-handshake=FALSE\ncharacter-set-server=utf8mb4\ncollation-server=utf8mb4_unicode_ci\n[mysql]\ndefault-character-set=utf8mb4" > /etc/mysql/mariadb.conf.d/99-frappe.cnf'
+          docker restart ${{ job.services.mariadb.id }}
+          sleep 8
+
+      # Local equivalent: brew services start redis
+      - name: Install Redis
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y redis-server
+          redis-cli ping
+
+      - name: Install bench
+        run: pip install frappe-bench
+
+      # Local equivalent: bench init frappe-bench --frappe-branch version-15
+      - name: Init bench
+        run: |
+          bench init frappe-bench --frappe-branch version-15 --python python3.11
+          echo "$(pwd)/frappe-bench" >> "$GITHUB_PATH"
+
+      - name: Fetch ERPNext and install this app from source
+        working-directory: frappe-bench
+        run: |
+          bench get-app erpnext --branch version-15
+          bench get-app "$GITHUB_WORKSPACE"
+
+      # Local equivalent: the bench redis instances started alongside `bench start`
+      - name: Start bench Redis instances
+        run: |
+          redis-server --port 11000 --daemonize yes
+          redis-server --port 13000 --daemonize yes
+          redis-cli -p 11000 ping
+          redis-cli -p 13000 ping
+
+      - name: Create clean test site with deterministic fixtures only
+        working-directory: frappe-bench
+        run: |
+          bench new-site ci.localhost \
+            --mariadb-root-password root \
+            --admin-password admin \
+            --db-name vellox_ci \
+            --install-app erpnext \
+            --install-app vellox_agency
+          bench --site ci.localhost set-config allow_tests true
+
+      # Local equivalent: bench --site vellox.localhost migrate
+      - name: Migrate
+        working-directory: frappe-bench
+        run: bench --site ci.localhost migrate
+
+      - name: Python compilation check
+        working-directory: frappe-bench/apps/vellox_agency
+        run: python -m compileall -q vellox_agency
+
+      # Local equivalent: node --test <file>
+      - name: JavaScript tests
+        if: hashFiles('vellox_agency/tests/js/**/*.js') != ''
+        working-directory: frappe-bench/apps/vellox_agency
+        run: |
+          find vellox_agency/tests/js -name "*.js" -print0 | xargs -0 -n1 node --test
+
+      # Local equivalent: bench --site vellox.localhost run-tests --app vellox_agency
+      # Committed-behavior modules are enforced here. The intentionally RED
+      # offer-builder TDD placeholders are added once implemented ([P1-15]
+      # flips this to the full suite).
+      - name: Frappe tests (committed behavior modules)
+        working-directory: frappe-bench
+        run: |
+          bench --site ci.localhost run-tests --app vellox_agency --module vellox_agency.tests.test_offer_builder_setup
+          bench --site ci.localhost run-tests --app vellox_agency --module vellox_agency.tests.test_compatibility
+
+      - name: Whitespace check
+        run: git diff --check
