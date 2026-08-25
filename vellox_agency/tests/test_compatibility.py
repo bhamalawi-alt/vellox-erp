@@ -31,8 +31,3 @@ class TestRuntimeCompatibility(FrappeTestCase):
 
 def test_deliberate_ci_failure_probe():
 	assert False, "deliberate failure: proving CI catches broken tests"
-
-
-class TestDeliberateProbe(FrappeTestCase):
-	def test_ci_enforcement_probe(self):
-		self.fail("deliberate failure: proving CI catches broken tests")
