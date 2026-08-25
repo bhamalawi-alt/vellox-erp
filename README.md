@@ -76,6 +76,23 @@ It builds/uses a scratch bench under `/private/tmp/vellox-clean-install-bench`,
 installs the app from the given URL, migrates, uninstalls and reinstalls the app,
 and runs the app test suite.
 
+## CI and local equivalents
+
+CI (`.github/workflows/ci.yml`) runs on every push to master and every pull
+request. Each CI step maps 1:1 to a local command:
+
+| CI step | Local equivalent |
+|---|---|
+| Init bench + fetch apps + clean site | `scripts/verify_clean_install.sh` |
+| Migrate | `bench --site vellox.localhost migrate` |
+| Python compilation | `python -m compileall -q vellox_agency` |
+| JavaScript tests | `node --test <file>` |
+| Frappe tests | `bench --site vellox.localhost run-tests --app vellox_agency` |
+| Whitespace check | `git diff --check` |
+
+CI creates its own throwaway database inside an ephemeral MariaDB container;
+no credentials or site configuration are stored in this repository.
+
 ## Repo Layout
 
 ```
