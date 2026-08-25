@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"vel_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Vellox Agency</b></span>\",\"col\":12}},{\"id\":\"vel_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vel_short_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New Client\",\"col\":3}},{\"id\":\"vel_short_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New Project\",\"col\":3}},{\"id\":\"vel_short_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New Campaign\",\"col\":3}},{\"id\":\"vel_short_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New Invoice\",\"col\":3}},{\"id\":\"vel_short_5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New Timesheet\",\"col\":3}},{\"id\":\"vel_short_6\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"New Production Job\",\"col\":3}},{\"id\":\"vel_sp_2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vel_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Dashboard</b></span>\",\"col\":12}},{\"id\":\"vel_card_1\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"vel_card_2\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":4}}]",
+ "content": "[\n {\n  \"id\": \"vel_hdr_1\",\n  \"type\": \"header\",\n  \"data\": {\n   \"text\": \"<span class=\\\"h4\\\"><b>Vellox Agency</b></span>\",\n   \"col\": 12\n  }\n },\n {\n  \"id\": \"vel_sp_1\",\n  \"type\": \"spacer\",\n  \"data\": {\n   \"col\": 12\n  }\n },\n {\n  \"id\": \"vel_short_1\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Client\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_2\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Project\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_3\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Campaign\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_4\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Invoice\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_5\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Timesheet\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_6\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Production Job\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_sp_2\",\n  \"type\": \"spacer\",\n  \"data\": {\n   \"col\": 12\n  }\n },\n {\n  \"id\": \"vel_hdr_2\",\n  \"type\": \"header\",\n  \"data\": {\n   \"text\": \"<span class=\\\"h4\\\"><b>Reports &amp; Dashboard</b></span>\",\n   \"col\": 12\n  }\n },\n {\n  \"id\": \"vel_card_1\",\n  \"type\": \"card\",\n  \"data\": {\n   \"card_name\": \"Reports\",\n   \"col\": 4\n  }\n },\n {\n  \"id\": \"vel_card_2\",\n  \"type\": \"card\",\n  \"data\": {\n   \"card_name\": \"Masters\",\n   \"col\": 4\n  }\n },\n {\n  \"id\": \"vel_short_offer\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"Offers\",\n   \"col\": 3\n  }\n }\n]",
  "creation": "2026-08-13 00:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -77,6 +77,16 @@
    "link_count": 0,
    "onboard": 0,
    "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Services",
+   "link_count": 0,
+   "link_to": "Item",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -179,7 +189,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-13 00:00:00.000000",
+ "modified": "2026-08-25 11:15:05.936366",
  "modified_by": "Administrator",
  "module": "Vellox Agency Reports",
  "name": "Vellox Agency",
@@ -223,6 +233,12 @@
   {
    "label": "New Production Job",
    "link_to": "Production Job",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "label": "Offers",
+   "link_to": "Quotation",
    "type": "DocType"
   }
  ],
