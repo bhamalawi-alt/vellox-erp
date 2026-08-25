@@ -8,7 +8,9 @@ app_license = "mit"
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["erpnext"]
+
+after_migrate = "vellox_agency.setup.offer_builder.setup_offer_builder"
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [

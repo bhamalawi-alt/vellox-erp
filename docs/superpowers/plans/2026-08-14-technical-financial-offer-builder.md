@@ -25,10 +25,17 @@
 
 ## Local Bench Sync Rule
 
+> Updated 2026-08-25 by [P0-02]: the repository was flattened so the root is the
+> installable app. Sync the repository root instead of the old nested path.
+
 The active preview bench uses a copied app at `/private/tmp/vellox-frappe-bench/apps/vellox_agency`, not a symlink to this repository. Immediately before every bench migration, build, or test command in this plan, sync the current repository app with:
 
 ```bash
-rsync -a --exclude "__pycache__" --exclude "*.pyc" "/Users/imac/Documents/ChatGPT/vellox erp/Elyostudio/apps/vellox_agency/" "/private/tmp/vellox-frappe-bench/apps/vellox_agency/"
+rsync -a --exclude "__pycache__" --exclude "*.pyc" --exclude ".git" \
+  --exclude ".bench-venv" --exclude "frappe-bench" \
+  --exclude "docs" --exclude "scripts" \
+"/Users/imac/Documents/ChatGPT/vellox erp/Elyostudio/" \
+"/private/tmp/vellox-frappe-bench/apps/vellox_agency/"
 ```
 
 This command intentionally does not use `--delete`; it must not remove unrelated files from the active local bench.
