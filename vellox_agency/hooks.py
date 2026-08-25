@@ -33,6 +33,14 @@ doc_events = {
 	)
 }
 
+doc_events["Lead"] = {
+	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
+}
+
+doc_events["Opportunity"] = {
+	"validate": "vellox_agency.qualification_gate.require_qualified_lead",
+}
+
 # Server-side permission enforcement (not UI decoration) for the same ledgers.
 has_permission = {
 	doctype: "vellox_agency.security.has_deprecated_doctype_access"

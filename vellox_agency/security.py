@@ -26,11 +26,14 @@ MANAGEMENT_ROLES = ("System Manager", "Agency Manager")
 
 def apply_baseline() -> None:
 	"""after_migrate hook: reapply offer metadata + least-privilege baseline."""
+	from vellox_agency.crm_setup import setup_crm_intake_fields, setup_lead_assignment_and_sla
 	from vellox_agency.setup.commercial import setup_commercial_foundation
 	from vellox_agency.setup.offer_builder import setup_offer_builder
 
 	setup_offer_builder()
 	setup_commercial_foundation()
+	setup_crm_intake_fields()
+	setup_lead_assignment_and_sla()
 	setup_roles_and_permissions()
 
 
