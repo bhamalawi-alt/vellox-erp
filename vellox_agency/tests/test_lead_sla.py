@@ -53,6 +53,7 @@ class TestLeadSLAQualification(FrappeTestCase):
 					"doctype": "Opportunity",
 					"opportunity_from": "Lead",
 					"party_name": lead.name,
+					"company": "_Test Company",
 				}
 			).insert(ignore_permissions=True)
 
