@@ -29,11 +29,19 @@ DEFAULT_UOM = "Unit"
 
 
 def setup_commercial_foundation() -> None:
+	_ensure_uom()
 	_ensure_service_item_group()
 	_ensure_practice_items()
 	_ensure_price_lists()
 	_ensure_item_prices()
 	frappe.db.commit()
+
+
+def _ensure_uom() -> None:
+	if not frappe.db.exists("UOM", DEFAULT_UOM):
+		frappe.get_doc({"doctype": "UOM", "uom_name": DEFAULT_UOM}).insert(
+			ignore_permissions=True
+		)
 
 
 def _ensure_service_item_group() -> None:
