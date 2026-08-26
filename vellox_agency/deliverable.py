@@ -61,6 +61,13 @@ def transition(doc, action):
 
     doc.status = target
 
+    if target == "Client Review":
+        _notify("vellox_agency.notifications.notify_client_review", doc)
+    if target in ("Approved", "Changes Requested"):
+        _notify("vellox_agency.notifications.notify_client_decision", doc)
+    if target == "Changes Requested" and _is_revision_exhausted(doc):
+        _notify("vellox_agency.notifications.notify_revision_exhausted", doc)
+
     if target == "Approved":
         doc.accepted_on = frappe.utils.now_datetime()
         doc.accepted_by = frappe.session.user
@@ -121,3 +128,10 @@ def _sync_current_version(doc):
     if versions:
         max_version = max(v.version_number for v in versions)
         doc.current_version = max_version
+
+
+def _notify(method_path, doc):
+    try:
+        frappe.get_attr(method_path)(doc)
+    except Exception:
+        pass  # notification failure must not block lifecycle
