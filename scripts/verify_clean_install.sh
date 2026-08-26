@@ -88,6 +88,7 @@ echo "== 5/6 uninstall + reinstall vellox_agency =="
 "$BENCH" --site "$SITE" uninstall-app vellox_agency --yes >/dev/null
 "$BENCH" --site "$SITE" install-app vellox_agency >/dev/null
 "$BENCH" --site "$SITE" migrate >/dev/null
+"$BENCH" --site "$SITE" clear-cache >/dev/null
 "$BENCH" --site "$SITE" list-apps | grep -q vellox_agency
 echo "uninstall/reinstall OK"
 
