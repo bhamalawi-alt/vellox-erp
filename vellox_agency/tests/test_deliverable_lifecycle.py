@@ -78,11 +78,70 @@ class TestDeliverableLifecycle(FrappeTestCase):
         transition(doc, "cancel")
         self.assertEqual(doc.status, "Cancelled")
 
-    def test_cancel_not_allowed_after_internal_review(self):
+    def test_cancel_allowed_from_internal_review(self):
         doc = _deliverable().insert(ignore_permissions=True)
         transition(doc, "submit_for_review")
+        self.assertEqual(doc.status, "Internal Review")
+        transition(doc, "cancel")
+        self.assertEqual(doc.status, "Cancelled")
+
+    def test_cancel_allowed_from_client_review(self):
+        doc = _deliverable().insert(ignore_permissions=True)
+        transition(doc, "submit_for_review")
+        transition(doc, "internal_approve")
+        self.assertEqual(doc.status, "Client Review")
+        transition(doc, "cancel")
+        self.assertEqual(doc.status, "Cancelled")
+
+    def test_cancel_allowed_from_changes_requested(self):
+        doc = _deliverable().insert(ignore_permissions=True)
+        transition(doc, "submit_for_review")
+        transition(doc, "internal_approve")
+        transition(doc, "request_changes")
+        self.assertEqual(doc.status, "Changes Requested")
+        transition(doc, "cancel")
+        self.assertEqual(doc.status, "Cancelled")
+
+    def test_terminal_state_approved_raises(self):
+        doc = _deliverable().insert(ignore_permissions=True)
+        doc.append("review_rounds", {
+            "reviewer": "Administrator",
+            "audience": "Client",
+            "outcome": "Approved",
+            "comments": "Looks great",
+            "reviewed_on": frappe.utils.now_datetime(),
+        })
+        doc.save()
+        transition(doc, "submit_for_review")
+        transition(doc, "internal_approve")
+        transition(doc, "client_approve")
+        self.assertEqual(doc.status, "Approved")
         with self.assertRaisesRegex(frappe.ValidationError, "Illegal transition"):
-            transition(doc, "cancel")
+            transition(doc, "submit_for_review")
+
+    def test_terminal_state_cancelled_raises(self):
+        doc = _deliverable().insert(ignore_permissions=True)
+        transition(doc, "cancel")
+        self.assertEqual(doc.status, "Cancelled")
+        with self.assertRaisesRegex(frappe.ValidationError, "Illegal transition"):
+            transition(doc, "submit_for_review")
+
+    def test_accepted_stamps_populated_after_approval(self):
+        doc = _deliverable().insert(ignore_permissions=True)
+        doc.append("review_rounds", {
+            "reviewer": "Administrator",
+            "audience": "Client",
+            "outcome": "Approved",
+            "comments": "Looks great",
+            "reviewed_on": frappe.utils.now_datetime(),
+        })
+        doc.save()
+        transition(doc, "submit_for_review")
+        transition(doc, "internal_approve")
+        transition(doc, "client_approve")
+        self.assertEqual(doc.status, "Approved")
+        self.assertIsNotNone(doc.accepted_on)
+        self.assertEqual(doc.accepted_by, frappe.session.user)
 
     def test_final_approve_requires_client_round(self):
         doc = _deliverable().insert(ignore_permissions=True)

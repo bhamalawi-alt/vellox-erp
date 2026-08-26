@@ -15,13 +15,16 @@ LEGAL_TRANSITIONS = {
     "Internal Review": {
         "internal_approve": "Client Review",
         "request_changes": "Changes Requested",
+        "cancel": "Cancelled",
     },
     "Client Review": {
         "client_approve": "Approved",
         "request_changes": "Changes Requested",
+        "cancel": "Cancelled",
     },
     "Changes Requested": {
         "submit_for_review": "Internal Review",
+        "cancel": "Cancelled",
     },
 }
 # Approved and Cancelled are terminal — no outgoing transitions.
