@@ -38,7 +38,11 @@ doc_events["Lead"] = {
 }
 
 doc_events["Quotation"] = {
-	"validate": "vellox_agency.estimate.apply_estimate_margin",
+	"validate": [
+		"vellox_agency.estimate.apply_estimate_margin",
+		"vellox_agency.approval.stamp_approval_on_validate",
+	],
+	"before_submit": "vellox_agency.approval.gate_submission",
 }
 
 doc_events["Opportunity"] = {
