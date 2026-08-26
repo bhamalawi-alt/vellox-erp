@@ -1,0 +1,27 @@
+{
+  "actions": [],
+  "creation": "2026-08-26 00:00:00.000000",
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": ["reviewer", "audience", "outcome", "comments", "reviewed_on"],
+  "fields": [
+    {"fieldname": "reviewer", "label": "Reviewer", "fieldtype": "Link", "options": "User", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "audience", "label": "Audience", "fieldtype": "Select", "options": "Internal\nClient", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "outcome", "label": "Outcome", "fieldtype": "Select", "options": "Approved\nChanges Requested", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "comments", "label": "Comments", "fieldtype": "Small Text"},
+    {"fieldname": "reviewed_on", "label": "Reviewed On", "fieldtype": "Datetime", "reqd": 1}
+  ],
+  "istable": 1,
+  "links": [],
+  "modified": "2026-08-26 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Vellox Agency Projects",
+  "name": "Vellox Review Round",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}
