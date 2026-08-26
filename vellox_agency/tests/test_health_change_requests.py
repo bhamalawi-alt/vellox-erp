@@ -43,10 +43,15 @@ class TestHealthAndChangeRequests(FrappeTestCase):
 
 	def _submitted_amendment(self):
 		from erpnext.selling.doctype.quotation.test_quotation import make_quotation
+		from erpnext.stock.doctype.item.test_item import make_item
 		from vellox_agency.tests.test_offer_builder import TEST_CUSTOMER, TEST_PRICE_LIST
 
+		item = "_Test Vellox Iso Service"
+		if not frappe.db.exists("Item", item):
+			make_item(item, {"is_stock_item": 0, "stock_uom": "Unit"})
+
 		return make_quotation(
-			item="_Test Vellox Iso Service",
+			item=item,
 			party_name=TEST_CUSTOMER,
 			selling_price_list=TEST_PRICE_LIST,
 			warehouse="",
