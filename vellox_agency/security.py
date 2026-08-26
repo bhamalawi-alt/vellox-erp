@@ -28,10 +28,10 @@ def apply_baseline() -> None:
 	"""after_migrate hook: reapply offer metadata + least-privilege baseline."""
 	from vellox_agency.crm_setup import (
 		setup_commercial_approval_fields,
-
 		setup_crm_intake_fields,
 		setup_lead_assignment_and_sla,
 		setup_opportunity_pipeline,
+		setup_quotation_estimate_fields,
 	)
 	from vellox_agency.setup.commercial import setup_commercial_foundation
 	from vellox_agency.setup.practice_templates import setup_practice_templates
