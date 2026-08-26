@@ -1,0 +1,25 @@
+{
+ "actions": [],
+ "creation": "2026-08-25 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "istable": 1,
+ "module": "Vellox Agency CRM",
+ "name": "Vellox Practice Step",
+ "owner": "Administrator",
+ "modified": "2026-08-25 12:00:00.000000",
+ "modified_by": "Administrator",
+ "field_order": ["subject", "phase", "is_milestone", "depends_on_step", "default_role", "est_days"],
+ "fields": [
+  {"fieldname": "subject", "label": "Step", "fieldtype": "Data", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "phase", "label": "Phase", "fieldtype": "Select", "options": "\nDiscovery\nDesign\nBuild\nLaunch\nPost-Launch", "in_list_view": 1},
+  {"fieldname": "is_milestone", "label": "Milestone", "fieldtype": "Check", "default": "0", "in_list_view": 1},
+  {"fieldname": "depends_on_step", "label": "Depends on Step #", "fieldtype": "Int", "in_list_view": 1},
+  {"fieldname": "default_role", "label": "Default Role", "fieldtype": "Data", "in_list_view": 1},
+  {"fieldname": "est_days", "label": "Est. Days", "fieldtype": "Int", "in_list_view": 1}
+ ],
+ "permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1}],
+ "sort_field": "idx",
+ "sort_order": "ASC",
+ "states": []
+}
