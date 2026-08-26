@@ -2,7 +2,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate
+from frappe.utils import cint, nowdate
 
 CREATION_ROLES = ("System Manager", "Agency Manager", "Vellox Project Manager")
 
@@ -96,3 +96,44 @@ def _create_template_tasks(doc, project) -> int:
 			task.insert(ignore_permissions=True)
 			created += 1
 	return created
+
+
+@frappe.whitelist()
+def create_project_from_template(template_name: str, customer: str | None = None):
+	"""Create a live Project from a practice template's ordered steps."""
+	from vellox_agency.setup.practice_templates import get_steps, STEPS_DOCTYPE
+
+	_ensure_acceptance_fields()
+	if not frappe.db.exists("Project Template", template_name):
+		frappe.throw(_("Project Template {0} not found.").format(template_name))
+	if not frappe.db.exists("DocType", STEPS_DOCTYPE):
+		frappe.throw(_("Practice steps are not installed. Run migrate."))
+
+	project = frappe.new_doc("Project")
+	project.project_name = f"{template_name} — {frappe.utils.now_datetime().strftime('%Y%m%d-%H%M%S')}"
+	company = frappe.defaults.get_global_default("company")
+	if not company and frappe.db.exists("Company", "_Test Company"):
+		company = "_Test Company"
+	if company:
+		project.company = company
+	if customer and frappe.db.exists("Customer", customer):
+		project.customer = customer
+	project.expected_start_date = nowdate()
+	project.insert(ignore_permissions=True)
+
+	step_to_task: dict[int, str] = {}
+	for index, step in enumerate(get_steps(template_name), start=1):
+		task = frappe.new_doc("Task")
+		task.subject = step["subject"][:140]
+		task.project = project.name
+		task.is_milestone = cint(step.get("is_milestone"))
+		if step.get("default_role"):
+			task.custom_vellox_default_role = step["default_role"]
+		task.insert(ignore_permissions=True)
+		dep = cint(step.get("depends_on_step"))
+		if dep and dep in step_to_task:
+			task.append("depends_on", {"task": step_to_task[dep]})
+			task.save(ignore_permissions=True)
+		step_to_task[index] = task.name
+
+	return {"ok": True, "project": project.name}
