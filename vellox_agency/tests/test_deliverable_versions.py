@@ -122,6 +122,7 @@ class TestDeliverableVersions(FrappeTestCase):
         # 2 rounds > allowance=1 → Changes Requested required
         with self.assertRaisesRegex(frappe.ValidationError, "Change Request"):
             transition(doc, "submit_for_review")
+        self.assertEqual(doc.status, "Changes Requested")
 
     def test_version_number_required(self):
         project = frappe.db.get_value("Project", {"project_name": "_Test Version Project"}, "name")

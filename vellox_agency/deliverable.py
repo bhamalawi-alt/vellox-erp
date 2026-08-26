@@ -38,7 +38,13 @@ def transition(doc, action):
     Raises frappe.ValidationError on illegal transitions or unmet preconditions.
     Updates doc.status in place; caller must call doc.save() afterwards.
     """
-    _check_revision_exhausted(doc)
+    if _is_revision_exhausted(doc) and action == "submit_for_review":
+        doc.status = "Changes Requested"
+        frappe.throw(
+            _("Revision allowance ({0}) exhausted. A Change Request is required "
+              "before further review rounds.").format(doc.revision_allowance),
+            frappe.ValidationError,
+        )
     current = doc.status
     rule = LEGAL_TRANSITIONS.get(current, {})
     target = rule.get(action)
@@ -66,7 +72,6 @@ def validate_deliverable(doc, method=None):
     """Hook: enforce version immutability on every save."""
     if not doc.is_new():
         _enforce_version_immutability(doc)
-    _enforce_revision_allowance(doc)
 
 
 def _enforce_version_immutability(doc):
@@ -90,21 +95,11 @@ def _enforce_version_immutability(doc):
                     )
 
 
-def _enforce_revision_allowance(doc):
-    """If review rounds consumed > revision_allowance, block submit_for_review."""
+def _is_revision_exhausted(doc):
+    """Return True if review rounds consumed > revision_allowance."""
     rounds_used = len(doc.review_rounds or [])
-    if rounds_used > (doc.revision_allowance or 2):
-        doc._revision_exhausted = True
-
-
-def _check_revision_exhausted(doc):
-    """Called at the start of transition(); raises if exhausted."""
-    if getattr(doc, "_revision_exhausted", False):
-        frappe.throw(
-            _("Revision allowance ({0}) exhausted. A Change Request is required "
-              "before further review rounds.").format(doc.revision_allowance),
-            frappe.ValidationError,
-        )
+    allowance = doc.revision_allowance or 0
+    return rounds_used > allowance
 
 
 def _require_approved_client_round(doc):
