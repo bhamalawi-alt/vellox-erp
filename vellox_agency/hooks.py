@@ -46,6 +46,10 @@ doc_events["Vellox Change Request"] = {
 	"before_validate": "vellox_agency.change_control.shift_schedule_on_approval",
 }
 
+doc_events["Deliverable"] = {
+	"validate": "vellox_agency.deliverable.validate_deliverable",
+}
+
 doc_events["Quotation"] = {
 	"validate": [
 		"vellox_agency.estimate.apply_estimate_margin",

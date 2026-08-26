@@ -9,6 +9,7 @@ access is denied server-side, not merely hidden in the UI.
 import frappe
 
 from vellox_agency.deprecations import DEPRECATION_TARGETS
+from vellox_agency.delivery_setup import setup_delivery_fields
 
 ROLE_MATRIX: dict[str, dict] = {
 	"Vellox Sales": {"desk_access": 1},
@@ -47,6 +48,7 @@ def apply_baseline() -> None:
 	setup_commercial_approval_fields()
 	setup_project_health_field()
 	setup_change_request_doctype()
+	setup_delivery_fields()
 	setup_practice_templates()
 	setup_quotation_estimate_fields()
 	setup_roles_and_permissions()

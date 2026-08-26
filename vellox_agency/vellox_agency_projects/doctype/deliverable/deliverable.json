@@ -1,148 +1,56 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-08-13 00:00:00.000000",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "deliverable_name",
-  "project",
-  "client_account",
-  "deliverable_type",
-  "status",
-  "due_date",
-  "assigned_to",
-  "sb_description",
-  "description",
-  "sb_revisions",
-  "current_revision",
-  "approval_status"
- ],
- "fields": [
-  {
-   "fieldname": "deliverable_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Deliverable Name",
-   "reqd": 1
-  },
-  {
-   "fieldname": "project",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Project",
-   "options": "Agency Project",
-   "reqd": 1
-  },
-  {
-   "fieldname": "client_account",
-   "fieldtype": "Link",
-   "in_standard_filter": 1,
-   "label": "Client Account",
-   "options": "Client Account"
-  },
-  {
-   "fieldname": "deliverable_type",
-   "fieldtype": "Select",
-   "default": "Design",
-   "in_list_view": 1,
-   "label": "Deliverable Type",
-   "options": "Strategy\nDesign\nVisual Content\nWeb\neCommerce\nMobile App\nCopy\nOther"
-  },
-  {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "default": "Not Started",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Status",
-   "options": "Not Started\nIn Progress\nIn Review\nApproved\nRejected\nDelivered\nCancelled"
-  },
-  {
-   "fieldname": "due_date",
-   "fieldtype": "Date",
-   "label": "Due Date"
-  },
-  {
-   "fieldname": "assigned_to",
-   "fieldtype": "Link",
-   "label": "Assigned To",
-   "options": "User"
-  },
-  {
-   "fieldname": "sb_description",
-   "fieldtype": "Section Break",
-   "label": "Description"
-  },
-  {
-   "fieldname": "description",
-   "fieldtype": "Text",
-   "label": "Description"
-  },
-  {
-   "fieldname": "sb_revisions",
-   "fieldtype": "Section Break",
-   "label": "Revisions"
-  },
-  {
-   "fieldname": "current_revision",
-   "fieldtype": "Data",
-   "label": "Current Revision"
-  },
-  {
-   "fieldname": "approval_status",
-   "fieldtype": "Select",
-   "label": "Approval Status",
-   "options": "Pending\nApproved\nRejected"
-  }
- ],
- "links": [],
- "modified": "2026-08-13 00:00:00.000000",
- "modified_by": "Administrator",
- "module": "Vellox Agency Projects",
- "name": "Deliverable",
- "naming_rule": "Expression (old style)",
- "naming_series": "DEL-.YYYY.-",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Agency Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Agency Staff",
-   "share": 1,
-   "write": 1
-  }
- ],
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": []
+  "actions": [],
+  "allow_rename": 1,
+  "creation": "2026-08-13 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "project", "title", "deliverable_type",
+    "sb_schedule", "due_date", "revision_allowance",
+    "sb_status", "status", "current_version",
+    "sb_acceptance", "accepted_on", "accepted_by",
+    "sb_content", "client_visible",
+    "sb_versions", "versions",
+    "sb_rounds", "review_rounds"
+  ],
+  "fields": [
+    {"fieldname": "project", "fieldtype": "Link", "options": "Project", "label": "Project", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+    {"fieldname": "title", "fieldtype": "Data", "label": "Title", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "deliverable_type", "fieldtype": "Select", "label": "Deliverable Type", "options": "Document\nDesign\nMedia\nCode\nReport", "reqd": 1, "in_list_view": 1, "default": "Design"},
+    {"fieldname": "sb_schedule", "fieldtype": "Section Break", "label": "Schedule"},
+    {"fieldname": "due_date", "fieldtype": "Date", "label": "Due Date"},
+    {"fieldname": "revision_allowance", "fieldtype": "Int", "label": "Revision Allowance", "default": "2", "reqd": 1},
+    {"fieldname": "sb_status", "fieldtype": "Section Break", "label": "Status"},
+    {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Draft\nInternal Review\nClient Review\nApproved\nChanges Requested\nCancelled", "default": "Draft", "in_list_view": 1, "in_standard_filter": 1},
+    {"fieldname": "current_version", "fieldtype": "Int", "label": "Current Version", "read_only": 1, "default": "0"},
+    {"fieldname": "sb_acceptance", "fieldtype": "Section Break", "label": "Acceptance"},
+    {"fieldname": "accepted_on", "fieldtype": "Datetime", "label": "Accepted On", "read_only": 1},
+    {"fieldname": "accepted_by", "fieldtype": "Link", "options": "User", "label": "Accepted By", "read_only": 1},
+    {"fieldname": "sb_content", "fieldtype": "Section Break", "label": "Content"},
+    {"fieldname": "client_visible", "fieldtype": "Check", "label": "Client Visible", "default": "0"},
+    {"fieldname": "sb_versions", "fieldtype": "Section Break", "label": "Versions"},
+    {"fieldname": "versions", "fieldtype": "Table", "label": "Versions", "options": "Vellox Deliverable Version"},
+    {"fieldname": "sb_rounds", "fieldtype": "Section Break", "label": "Review Rounds"},
+    {"fieldname": "review_rounds", "fieldtype": "Table", "label": "Review Rounds", "options": "Vellox Review Round"}
+  ],
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "modified": "2026-08-26 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Vellox Agency Projects",
+  "name": "Deliverable",
+  "naming_rule": "Expression (old style)",
+  "naming_series": "DEL-.YYYY.-",
+  "owner": "Administrator",
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "email": 1, "print": 1, "report": 1, "share": 1},
+    {"role": "Agency Manager", "read": 1, "write": 1, "create": 1, "email": 1, "print": 1, "report": 1, "share": 1},
+    {"role": "Vellox Project Manager", "read": 1, "write": 1, "create": 1, "email": 1, "print": 1, "report": 1, "share": 1},
+    {"role": "Vellox Team Member", "read": 1, "write": 1, "create": 1, "email": 1, "print": 1, "report": 1, "share": 1},
+    {"role": "Agency Staff", "read": 1, "write": 1, "create": 1, "email": 1, "print": 1, "report": 1, "share": 1}
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
 }
