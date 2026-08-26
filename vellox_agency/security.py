@@ -51,6 +51,7 @@ def apply_baseline() -> None:
 	setup_delivery_fields()
 	setup_practice_templates()
 	setup_quotation_estimate_fields()
+	_ensure_client_comment_permission()
 	setup_roles_and_permissions()
 
 
@@ -119,3 +120,48 @@ def has_deprecated_doctype_access(
 	if ptype != "read":
 		return False
 	return _user_has_management_role(user)
+
+
+def deliverable_permission_query(user):
+	"""permission_query_conditions hook for Deliverable.
+
+	Agency Client users see only client_visible deliverables.
+	All other roles see all deliverables (project-level filtering
+	is deferred to the portal phase when User Permissions are wired).
+	"""
+	if not user:
+		user = frappe.session.user
+	roles = set(frappe.get_roles(user))
+	if "Agency Client" in roles:
+		return "tabDeliverable.client_visible = 1"
+	return ""
+
+
+def comment_permission_query(user):
+	"""permission_query_conditions hook for Comment on Deliverable contexts.
+
+	Agency Client users see only client-visible comments.
+	"""
+	if not user:
+		user = frappe.session.user
+	roles = set(frappe.get_roles(user))
+	if "Agency Client" in roles:
+		return "tabComment.custom_vellox_client_visible = 1"
+	return ""
+
+
+def _ensure_client_comment_permission() -> None:
+	"""Grant Agency Client read-only access to Comment (core DocType)."""
+	frappe.flags.in_patch = True
+	try:
+		meta = frappe.get_doc("DocType", "Comment")
+		existing_roles = {p.role for p in meta.permissions or []}
+		if "Agency Client" not in existing_roles:
+			meta.append("permissions", {
+				"role": "Agency Client",
+				"read": 1,
+			})
+			meta.flags.ignore_permissions = True
+			meta.save()
+	finally:
+		frappe.flags.in_patch = False
