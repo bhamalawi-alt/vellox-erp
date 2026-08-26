@@ -38,6 +38,7 @@ def transition(doc, action):
     Raises frappe.ValidationError on illegal transitions or unmet preconditions.
     Updates doc.status in place; caller must call doc.save() afterwards.
     """
+    _check_revision_exhausted(doc)
     current = doc.status
     rule = LEGAL_TRANSITIONS.get(current, {})
     target = rule.get(action)
@@ -62,10 +63,48 @@ def transition(doc, action):
 
 
 def validate_deliverable(doc, method=None):
-    """Hook: called on every Deliverable save. Currently a no-op stub;
-    lifecycle enforcement is done via transition() + this hook will grow
-    in P3-27 for permission_query_conditions wiring."""
-    pass
+    """Hook: enforce version immutability on every save."""
+    if not doc.is_new():
+        _enforce_version_immutability(doc)
+    _enforce_revision_allowance(doc)
+
+
+def _enforce_version_immutability(doc):
+    """Existing version rows must not be modified after insert."""
+    if not doc.get_doc_before_save():
+        return
+    old_versions = {
+        v.name: v.as_dict()
+        for v in (doc.get_doc_before_save().versions or [])
+        if v.name
+    }
+    for row in doc.versions or []:
+        if row.name and row.name in old_versions:
+            old = old_versions[row.name]
+            for field in ("version_number", "file_url", "notes"):
+                if str(row.get(field)) != str(old.get(field)):
+                    frappe.throw(
+                        _("Version rows are immutable after creation. "
+                          "Create a new version instead."),
+                        frappe.ValidationError,
+                    )
+
+
+def _enforce_revision_allowance(doc):
+    """If review rounds consumed > revision_allowance, block submit_for_review."""
+    rounds_used = len(doc.review_rounds or [])
+    if rounds_used > (doc.revision_allowance or 2):
+        doc._revision_exhausted = True
+
+
+def _check_revision_exhausted(doc):
+    """Called at the start of transition(); raises if exhausted."""
+    if getattr(doc, "_revision_exhausted", False):
+        frappe.throw(
+            _("Revision allowance ({0}) exhausted. A Change Request is required "
+              "before further review rounds.").format(doc.revision_allowance),
+            frappe.ValidationError,
+        )
 
 
 def _require_approved_client_round(doc):
