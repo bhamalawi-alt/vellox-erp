@@ -43,6 +43,8 @@ def apply_baseline() -> None:
 	setup_lead_assignment_and_sla()
 	setup_opportunity_pipeline()
 	setup_commercial_approval_fields()
+	setup_project_health_field()
+	setup_change_request_doctype()
 	setup_practice_templates()
 	setup_quotation_estimate_fields()
 	setup_roles_and_permissions()

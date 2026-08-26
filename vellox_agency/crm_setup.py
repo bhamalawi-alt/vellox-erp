@@ -206,3 +206,36 @@ def stamp_first_response_due(doc, method=None) -> None:
 
 	if doc.doctype == "Lead" and not doc.custom_vellox_first_response_due:
 		doc.custom_vellox_first_response_due = add_to_date(now_datetime(), hours=FIRST_RESPONSE_HOURS)
+
+
+PROJECT_HEALTH_FIELD = {
+	"fieldname": "custom_vellox_health",
+	"label": "Project Health",
+	"fieldtype": "Select",
+	"options": "On Track\nAt Risk\nOff Track",
+	"default": "On Track",
+	"insert_after": "expected_end_date",
+}
+
+
+def setup_project_health_field() -> None:
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+	create_custom_fields({"Project": [PROJECT_HEALTH_FIELD]}, update=True)
+
+
+HEALTH_MANAGER_ROLES = ("System Manager", "Agency Manager", "Vellox Project Manager")
+CR_LEGAL_TRANSITIONS = {
+	"Draft": {"Under Review"},
+	"Under Review": {"Approved", "Rejected"},
+	"Approved": {"Implemented", "Closed"},
+	"Rejected": {"Closed", "Under Review"},
+	"Implemented": {"Closed"},
+}
+PM_APPROVE_ROLES = ("System Manager", "Agency Manager", "Vellox Project Manager")
+
+
+def setup_change_request_doctype() -> None:
+	if not frappe.db.exists("DocType", "Vellox Change Request"):
+		frappe.reload_doc("vellox_agency_projects", "doctype", "vellox_change_request")
+	frappe.reload_doc("vellox_agency_projects", "doctype", "vellox_change_request")
