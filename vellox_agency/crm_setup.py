@@ -164,6 +164,33 @@ QUOTATION_ESTIMATE_FIELDS = [
 ]
 
 
+def setup_commercial_approval_fields() -> None:
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+	create_custom_fields(
+		{
+			"Quotation": [
+				{
+					"fieldname": "custom_vellox_approval_status",
+					"label": "Approval Status",
+					"fieldtype": "Select",
+					"options": "Pending\nApproved\nNot Approved",
+					"default": "Pending",
+					"insert_after": "custom_vellox_estimated_margin",
+				},
+				{
+					"fieldname": "custom_vellox_approved_by",
+					"label": "Approved By",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_vellox_approval_status",
+				},
+			]
+		},
+		update=True,
+	)
+
+
 def setup_quotation_estimate_fields() -> None:
 	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
