@@ -97,3 +97,12 @@ class TestDeliveryVisibility(FrappeTestCase):
             "vellox_agency.security.comment_permission_query"
         )
         self.assertTrue(callable(comment_conditions))
+
+    def test_notification_fixtures_exist(self):
+        for name in (
+            "Vellox Deliverable Client Review",
+            "Vellox Deliverable Client Decision",
+            "Vellox Change Request Decision",
+            "Vellox Revision Allowance Exhausted",
+        ):
+            self.assertTrue(frappe.db.exists("Notification", name), f"{name} missing")

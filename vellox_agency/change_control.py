@@ -64,6 +64,12 @@ def validate_change_request(doc, method=None) -> None:
 					frappe.ValidationError,
 				)
 
+		if doc.status in ("Approved", "Rejected"):
+			try:
+				frappe.get_attr("vellox_agency.notifications.notify_cr_decision")(doc)
+			except Exception:
+				pass
+
 
 def shift_schedule_on_approval(doc, method=None) -> None:
 	if doc.doctype != "Vellox Change Request" or doc.status != "Approved":
