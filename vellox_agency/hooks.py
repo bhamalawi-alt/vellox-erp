@@ -37,6 +37,15 @@ doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
 }
 
+doc_events["Project"] = {
+	"validate": "vellox_agency.change_control.gate_health_transition",
+}
+
+doc_events["Vellox Change Request"] = {
+	"validate": "vellox_agency.change_control.validate_change_request",
+	"before_validate": "vellox_agency.change_control.shift_schedule_on_approval",
+}
+
 doc_events["Quotation"] = {
 	"validate": [
 		"vellox_agency.estimate.apply_estimate_margin",

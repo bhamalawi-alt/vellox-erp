@@ -1,0 +1,35 @@
+{
+ "actions": [],
+ "autoname": "format:CR-{YYYY}-{#####}",
+ "creation": "2026-08-26 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["project", "title", "reason", "schedule_impact_days", "price_impact", "amendment_quotation", "status", "approved_by"],
+ "fields": [
+  {"fieldname": "project", "label": "Project", "fieldtype": "Link", "options": "Project", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "title", "label": "Title", "fieldtype": "Data", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "reason", "label": "Reason / Justification", "fieldtype": "Small Text"},
+  {"fieldname": "schedule_impact_days", "label": "Schedule Impact (days)", "fieldtype": "Int", "default": "0", "in_list_view": 1},
+  {"fieldname": "price_impact", "label": "Price Impact", "fieldtype": "Currency", "default": "0"},
+  {"fieldname": "amendment_quotation", "label": "Amendment Quotation", "fieldtype": "Link", "options": "Quotation", "depends_on": "eval:doc.price_impact!=0"},
+  {"fieldname": "status", "label": "Status", "fieldtype": "Select", "options": "\nDraft\nUnder Review\nApproved\nRejected\nImplemented\nClosed", "default": "Draft", "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "approved_by", "label": "Approved By", "fieldtype": "Data", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-26 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency Projects",
+ "name": "Vellox Change Request",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "Agency Manager", "read": 1, "write": 1, "create": 1},
+  {"role": "Vellox Project Manager", "read": 1, "write": 1, "create": 1},
+  {"role": "Agency Staff", "read": 1, "write": 1, "create": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
