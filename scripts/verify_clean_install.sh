@@ -69,7 +69,10 @@ rm -rf "$BENCH_DIR/apps/$REPO_NAME" "$BENCH_DIR/apps/vellox_agency"
 "$BENCH" get-app "$REPO_URL" "${GET_APP_ARGS[@]+"${GET_APP_ARGS[@]}"}" >/dev/null
 
 echo "== 3/6 fresh site $SITE with erpnext + vellox_agency =="
-"$BENCH" drop-site "$SITE" --force --mariadb-root-password "$MARIADB_ROOT_PASSWORD" >/dev/null 2>&1 || true
+# Clear both halves of any previous run: site dir AND database/user.
+rm -rf "$BENCH_DIR/sites/$SITE"
+mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -h127.0.0.1 -e \
+	"DROP DATABASE IF EXISTS vellox_ci_install; DROP USER IF EXISTS 'vellox_ci_install'@'%'; FLUSH PRIVILEGES;" 2>/dev/null || true
 "$BENCH" new-site "$SITE" \
 	--mariadb-root-password "$MARIADB_ROOT_PASSWORD" \
 	--admin-password "$ADMIN_PASSWORD" \
