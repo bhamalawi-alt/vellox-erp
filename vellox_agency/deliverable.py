@@ -59,14 +59,11 @@ def transition(doc, action):
     if action == "client_approve" and REQUIRE_CLIENT_REVIEW_FOR_APPROVE:
         _require_approved_client_round(doc)
 
+    # Emails are sent by the Notification records in delivery_setup when the
+    # caller saves the new status. Notification conditions cannot count child
+    # rows, so the exhausted check is passed to them as a flag for this save.
     doc.status = target
-
-    if target == "Client Review":
-        _notify("vellox_agency.notifications.notify_client_review", doc)
-    if target in ("Approved", "Changes Requested"):
-        _notify("vellox_agency.notifications.notify_client_decision", doc)
-    if target == "Changes Requested" and _is_revision_exhausted(doc):
-        _notify("vellox_agency.notifications.notify_revision_exhausted", doc)
+    doc.flags.revision_exhausted = target == "Changes Requested" and _is_revision_exhausted(doc)
 
     if target == "Approved":
         doc.accepted_on = frappe.utils.now_datetime()
@@ -128,10 +125,3 @@ def _sync_current_version(doc):
     if versions:
         max_version = max(v.version_number for v in versions)
         doc.current_version = max_version
-
-
-def _notify(method_path, doc):
-    try:
-        frappe.get_attr(method_path)(doc)
-    except Exception:
-        pass  # notification failure must not block lifecycle
