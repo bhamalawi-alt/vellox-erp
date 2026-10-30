@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[\n {\n  \"id\": \"vel_hdr_1\",\n  \"type\": \"header\",\n  \"data\": {\n   \"text\": \"<span class=\\\"h4\\\"><b>Vellox Agency</b></span>\",\n   \"col\": 12\n  }\n },\n {\n  \"id\": \"vel_sp_1\",\n  \"type\": \"spacer\",\n  \"data\": {\n   \"col\": 12\n  }\n },\n {\n  \"id\": \"vel_short_1\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Client\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_2\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Project\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_3\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Campaign\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_4\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Invoice\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_5\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Timesheet\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_short_6\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"New Production Job\",\n   \"col\": 3\n  }\n },\n {\n  \"id\": \"vel_sp_2\",\n  \"type\": \"spacer\",\n  \"data\": {\n   \"col\": 12\n  }\n },\n {\n  \"id\": \"vel_hdr_2\",\n  \"type\": \"header\",\n  \"data\": {\n   \"text\": \"<span class=\\\"h4\\\"><b>Reports &amp; Dashboard</b></span>\",\n   \"col\": 12\n  }\n },\n {\n  \"id\": \"vel_card_1\",\n  \"type\": \"card\",\n  \"data\": {\n   \"card_name\": \"Reports\",\n   \"col\": 4\n  }\n },\n {\n  \"id\": \"vel_card_2\",\n  \"type\": \"card\",\n  \"data\": {\n   \"card_name\": \"Masters\",\n   \"col\": 4\n  }\n },\n {\n  \"id\": \"vel_short_offer\",\n  \"type\": \"shortcut\",\n  \"data\": {\n   \"shortcut_name\": \"Offers\",\n   \"col\": 3\n  }\n }\n]",
+ "content": "[{\"id\": \"vel_hdr_1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Vellox Agency</b></span>\", \"col\": 12}}, {\"id\": \"vel_sp_1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"vel_short_1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Client\", \"col\": 3}}, {\"id\": \"vel_short_2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Project\", \"col\": 3}}, {\"id\": \"vel_short_4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Invoice\", \"col\": 3}}, {\"id\": \"vel_short_5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Timesheet\", \"col\": 3}}, {\"id\": \"vel_sp_2\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"vel_card_2\", \"type\": \"card\", \"data\": {\"card_name\": \"Masters\", \"col\": 4}}, {\"id\": \"vel_short_offer\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Offers\", \"col\": 3}}]",
  "creation": "2026-08-13 00:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -15,66 +15,8 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Reports",
-   "link_count": 0,
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Agency KPI",
-   "link_count": 0,
-   "link_to": "Agency KPI",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Budget vs Actual",
-   "link_count": 0,
-   "link_to": "Budget vs Actual",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Agency Utilization",
-   "link_count": 0,
-   "link_to": "Agency Utilization",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Production Pipeline",
-   "link_count": 0,
-   "link_to": "Production Pipeline",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Invoice Register",
-   "link_count": 0,
-   "link_to": "Invoice Register",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Masters",
-   "link_count": 0,
+   "link_count": 7,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -91,39 +33,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Client Account",
+   "label": "Clients",
    "link_count": 0,
-   "link_to": "Client Account",
-   "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Engagement",
-   "link_count": 0,
-   "link_to": "Engagement",
-   "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Agency Project",
-   "link_count": 0,
-   "link_to": "Agency Project",
-   "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Agency Campaign",
-   "link_count": 0,
-   "link_to": "Agency Campaign",
+   "link_to": "Customer",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -131,9 +43,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Production Job",
+   "label": "Projects",
    "link_count": 0,
-   "link_to": "Production Job",
+   "link_to": "Project",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -141,9 +53,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Agency Invoice",
+   "label": "Deliverables",
    "link_count": 0,
-   "link_to": "Agency Invoice",
+   "link_to": "Deliverable",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -151,9 +63,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Expense",
+   "label": "Change Requests",
    "link_count": 0,
-   "link_to": "Expense",
+   "link_to": "Vellox Change Request",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -161,9 +73,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Agency Timesheet",
+   "label": "Timesheets",
    "link_count": 0,
-   "link_to": "Agency Timesheet",
+   "link_to": "Timesheet",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -171,25 +83,15 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Capacity Plan",
+   "label": "Sales Invoices",
    "link_count": 0,
-   "link_to": "Capacity Plan",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Skill",
-   "link_count": 0,
-   "link_to": "Skill",
+   "link_to": "Sales Invoice",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   }
  ],
- "modified": "2026-10-30 21:00:00.000000",
+ "modified": "2026-10-31 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vellox Agency Reports",
  "name": "Vellox Agency",
@@ -205,32 +107,22 @@
   {
    "color": "Blue",
    "label": "New Client",
-   "link_to": "Client Account",
+   "link_to": "Customer",
    "type": "DocType"
   },
   {
    "label": "New Project",
-   "link_to": "Agency Project",
-   "type": "DocType"
-  },
-  {
-   "label": "New Campaign",
-   "link_to": "Agency Campaign",
-   "type": "DocType"
-  },
-  {
-   "label": "New Invoice",
-   "link_to": "Agency Invoice",
+   "link_to": "Project",
    "type": "DocType"
   },
   {
    "label": "New Timesheet",
-   "link_to": "Agency Timesheet",
+   "link_to": "Timesheet",
    "type": "DocType"
   },
   {
-   "label": "New Production Job",
-   "link_to": "Production Job",
+   "label": "New Invoice",
+   "link_to": "Sales Invoice",
    "type": "DocType"
   },
   {

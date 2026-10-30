@@ -20,7 +20,17 @@ DEPRECATION_TARGETS = {
 	"Retainer": "Subscription (approved ERPNext-backed model)",
 }
 
-_EXEMPT_FLAGS = ("in_install", "in_migrate", "in_patch", "in_test", "in_uninstall")
+# Script reports built on the deprecated ledgers above. Disabled now; deleted
+# once ERPNext-backed dashboards replace them ([P7-111]).
+LEGACY_REPORTS = (
+	"Agency KPI",
+	"Agency Utilization",
+	"Budget vs Actual",
+	"Invoice Register",
+	"Production Pipeline",
+)
+
+_EXEMPT_FLAGS =("in_install", "in_migrate", "in_patch", "in_test", "in_uninstall")
 
 
 def _exempt() -> bool:
