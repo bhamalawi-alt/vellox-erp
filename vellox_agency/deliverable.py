@@ -59,14 +59,9 @@ def transition(doc, action):
     if action == "client_approve" and REQUIRE_CLIENT_REVIEW_FOR_APPROVE:
         _require_approved_client_round(doc)
 
+    # Emails are sent by the Notification records in delivery_setup when the
+    # caller saves the new status.
     doc.status = target
-
-    if target == "Client Review":
-        _notify("vellox_agency.notifications.notify_client_review", doc)
-    if target in ("Approved", "Changes Requested"):
-        _notify("vellox_agency.notifications.notify_client_decision", doc)
-    if target == "Changes Requested" and _is_revision_exhausted(doc):
-        _notify("vellox_agency.notifications.notify_revision_exhausted", doc)
 
     if target == "Approved":
         doc.accepted_on = frappe.utils.now_datetime()
@@ -79,6 +74,10 @@ def validate_deliverable(doc, method=None):
     """Hook: enforce version immutability on every save."""
     if not doc.is_new():
         _enforce_version_immutability(doc)
+    # Notification conditions cannot count child rows, so the exhausted check
+    # reaches the "Revision Allowance Exhausted" condition as a per-save flag.
+    # Set here, not in transition(), because users also change status on the form.
+    doc.flags.revision_exhausted = doc.status == "Changes Requested" and _is_revision_exhausted(doc)
 
 
 def _enforce_version_immutability(doc):
@@ -128,10 +127,3 @@ def _sync_current_version(doc):
     if versions:
         max_version = max(v.version_number for v in versions)
         doc.current_version = max_version
-
-
-def _notify(method_path, doc):
-    try:
-        frappe.get_attr(method_path)(doc)
-    except Exception:
-        pass  # notification failure must not block lifecycle
