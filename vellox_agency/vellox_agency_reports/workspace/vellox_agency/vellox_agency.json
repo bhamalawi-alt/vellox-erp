@@ -189,7 +189,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-25 11:15:05.936366",
+ "modified": "2026-10-30 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vellox Agency Reports",
  "name": "Vellox Agency",
@@ -204,10 +204,8 @@
  "shortcuts": [
   {
    "color": "Blue",
-   "format": "{} Open",
    "label": "New Client",
    "link_to": "Client Account",
-   "stats_filter": "{\"status\":\"Open\"}",
    "type": "DocType"
   },
   {
