@@ -77,7 +77,16 @@ def setup_practice_templates() -> None:
 					"options": STEPS_DOCTYPE,
 					"insert_after": "tasks",
 				}
-			]
+			],
+			"Task": [
+				{
+					"fieldname": "custom_vellox_default_role",
+					"label": "Default Role",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "is_milestone",
+				}
+			],
 		},
 		update=True,
 	)
