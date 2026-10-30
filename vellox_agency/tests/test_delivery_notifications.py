@@ -34,6 +34,8 @@ def _outgoing_email_account():
 
 def _queued(doc):
 	"""Return (subject line, recipients) for every email queued against doc."""
+	import re
+
 	queued = []
 	for row in frappe.get_all(
 		"Email Queue",
@@ -42,7 +44,8 @@ def _queued(doc):
 		order_by="creation asc",
 	):
 		recipients = frappe.get_all("Email Queue Recipient", filters={"parent": row.name}, pluck="recipient")
-		queued.append((row.message, set(recipients)))
+		subject = re.search(r"^Subject: (.*)$", row.message, re.MULTILINE)
+		queued.append((subject.group(1).strip() if subject else row.message[:200], set(recipients)))
 	return queued
 
 
@@ -132,6 +135,16 @@ class TestDeliveryNotifications(FrappeTestCase):
 		self.assertEqual(len(exhausted), 1, _queued(doc))
 		self.assertIn(MANAGER, exhausted[0])
 
+	def test_exhausted_allowance_emails_managers_when_status_is_set_on_the_form(self):
+		doc = self._move(self._deliverable(revision_allowance=0), "submit_for_review", "internal_approve")
+		self._client_round(doc, "Changes Requested")
+		doc.reload()
+		doc.status = "Changes Requested"  # as a user does on the Desk form, without transition()
+		doc.save(ignore_permissions=True)
+		exhausted = [r for m, r in _queued(doc) if "Revision allowance exhausted" in m]
+		self.assertEqual(len(exhausted), 1, _queued(doc))
+		self.assertIn(MANAGER, exhausted[0])
+
 	def test_change_request_decision_emails_the_owner_once(self):
 		with self.set_user(OWNER):
 			cr = frappe.get_doc(
@@ -146,6 +159,20 @@ class TestDeliveryNotifications(FrappeTestCase):
 		decisions = [r for m, r in _queued(cr) if "Change Request" in m and "Approved" in m]
 		self.assertEqual(len(decisions), 1, _queued(cr))
 		self.assertEqual(decisions[0], {OWNER})
+
+	def test_setup_keeps_admin_edits_to_repaired_notifications(self):
+		name = NOTIFICATION_DEFINITIONS[0]["name"]
+		setup_delivery_fields()
+		notification = frappe.get_doc("Notification", name)
+		notification.subject = "Edited by an admin"
+		notification.append("recipients", {"receiver_by_role": "Agency Manager"})
+		notification.save(ignore_permissions=True)
+
+		setup_delivery_fields()  # what every bench migrate runs
+
+		notification.reload()
+		self.assertEqual(notification.subject, "Edited by an admin")
+		self.assertIn("Agency Manager", [r.receiver_by_role for r in notification.recipients])
 
 	def test_setup_repairs_existing_method_notifications(self):
 		name = NOTIFICATION_DEFINITIONS[0]["name"]

@@ -60,10 +60,8 @@ def transition(doc, action):
         _require_approved_client_round(doc)
 
     # Emails are sent by the Notification records in delivery_setup when the
-    # caller saves the new status. Notification conditions cannot count child
-    # rows, so the exhausted check is passed to them as a flag for this save.
+    # caller saves the new status.
     doc.status = target
-    doc.flags.revision_exhausted = target == "Changes Requested" and _is_revision_exhausted(doc)
 
     if target == "Approved":
         doc.accepted_on = frappe.utils.now_datetime()
@@ -76,6 +74,10 @@ def validate_deliverable(doc, method=None):
     """Hook: enforce version immutability on every save."""
     if not doc.is_new():
         _enforce_version_immutability(doc)
+    # Notification conditions cannot count child rows, so the exhausted check
+    # reaches the "Revision Allowance Exhausted" condition as a per-save flag.
+    # Set here, not in transition(), because users also change status on the form.
+    doc.flags.revision_exhausted = doc.status == "Changes Requested" and _is_revision_exhausted(doc)
 
 
 def _enforce_version_immutability(doc):

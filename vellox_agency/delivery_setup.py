@@ -75,16 +75,17 @@ def _setup_comment_visibility() -> None:
 
 
 def setup_notification_fixtures() -> None:
-    """Create or repair the delivery Notification records.
+    """Create missing delivery Notification records and repair broken old ones.
 
-    Existing records are updated too: sites installed before this fix carry
-    "Method" notifications whose dotted-path method never fires.
+    Sites installed before the fix carry "Method" notifications whose
+    dotted-path method never fires; only those are rewritten. Any other
+    existing record is left alone so admin edits survive bench migrate.
     """
     for defn in NOTIFICATION_DEFINITIONS:
         name = defn["name"]
-        if frappe.db.exists("Notification", name):
+        if not frappe.db.exists("Notification", name):
+            frappe.get_doc({"doctype": "Notification", **defn}).insert(ignore_permissions=True)
+        elif frappe.db.get_value("Notification", name, "event") == "Method":
             doc = frappe.get_doc("Notification", name)
             doc.update({**defn, "method": None})
             doc.save(ignore_permissions=True)
-        else:
-            frappe.get_doc({"doctype": "Notification", **defn}).insert(ignore_permissions=True)
