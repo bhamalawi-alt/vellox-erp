@@ -82,10 +82,18 @@ def create_project_from_quotation(quotation: str):
 
 
 def _create_template_tasks(doc, project) -> int:
+	from vellox_agency.setup.practice_templates import get_steps
+
 	created = 0
 	for row in doc.items or []:
 		template = frappe.db.get_value("Item", row.item_code, "custom_vellox_project_template")
 		if not template:
+			continue
+		# Vellox practice templates keep their plan in practice steps; the standard
+		# tasks grid is only used by plain ERPNext templates.
+		steps = get_steps(template)
+		if steps:
+			created += len(_create_step_tasks(project, steps, prefix=f"{row.item_name}: "))
 			continue
 		tpl = frappe.get_doc("Project Template", template)
 		for task_row in tpl.tasks or []:
@@ -96,6 +104,24 @@ def _create_template_tasks(doc, project) -> int:
 			task.insert(ignore_permissions=True)
 			created += 1
 	return created
+
+
+def _create_step_tasks(project, steps: list[dict], prefix: str = "") -> list[str]:
+	"""Create one Task per practice step, keeping milestones, roles and step dependencies."""
+	step_to_task: dict[int, str] = {}
+	for index, step in enumerate(steps, start=1):
+		task = frappe.new_doc("Task")
+		task.subject = f"{prefix}{step['subject']}"[:140]
+		task.project = project.name
+		task.is_milestone = cint(step.get("is_milestone"))
+		if step.get("default_role"):
+			task.custom_vellox_default_role = step["default_role"]
+		dep = cint(step.get("depends_on_step"))
+		if dep and dep in step_to_task:
+			task.append("depends_on", {"task": step_to_task[dep]})
+		task.insert(ignore_permissions=True)
+		step_to_task[index] = task.name
+	return list(step_to_task.values())
 
 
 @frappe.whitelist()
@@ -120,20 +146,6 @@ def create_project_from_template(template_name: str, customer: str | None = None
 		project.customer = customer
 	project.expected_start_date = nowdate()
 	project.insert(ignore_permissions=True)
-
-	step_to_task: dict[int, str] = {}
-	for index, step in enumerate(get_steps(template_name), start=1):
-		task = frappe.new_doc("Task")
-		task.subject = step["subject"][:140]
-		task.project = project.name
-		task.is_milestone = cint(step.get("is_milestone"))
-		if step.get("default_role"):
-			task.custom_vellox_default_role = step["default_role"]
-		task.insert(ignore_permissions=True)
-		dep = cint(step.get("depends_on_step"))
-		if dep and dep in step_to_task:
-			task.append("depends_on", {"task": step_to_task[dep]})
-			task.save(ignore_permissions=True)
-		step_to_task[index] = task.name
+	_create_step_tasks(project, get_steps(template_name))
 
 	return {"ok": True, "project": project.name}
