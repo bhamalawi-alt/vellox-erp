@@ -32,6 +32,16 @@ class TestRoleAccess(FrappeTestCase):
 		_bootstrap_erpnext_test_fixtures()
 		setup_roles_and_permissions()
 		cls.customer = TEST_CUSTOMER
+		# One user per job for the whole class: Frappe throttles user creation
+		# (about 60 an hour), and no test changes these users' roles.
+		cls.class_tag = frappe.generate_hash(length=8)
+		cls._job_users = {}
+
+	def _job(self, profile, suffix=""):
+		key = (profile, suffix)
+		if key not in self._job_users:
+			self._job_users[key] = _job_user(f"{self.class_tag}{suffix}", profile)
+		return self._job_users[key]
 
 	def setUp(self):
 		self.tag = frappe.generate_hash(length=8)
@@ -96,7 +106,7 @@ class TestRoleAccess(FrappeTestCase):
 			return NONE
 
 	def _assert_levels(self, profile, expected):
-		user = _job_user(self.tag, profile)
+		user = self._job(profile)
 		samples = self._samples()
 		for doctype, level in expected.items():
 			with self.subTest(profile=profile, doctype=doctype):
@@ -142,7 +152,7 @@ class TestRoleAccess(FrappeTestCase):
 	def test_team_member_sees_only_assigned_projects(self):
 		for profile in ("Team Member", "Agency Staff"):
 			with self.subTest(profile=profile):
-				member = _job_user(self.tag, profile)
+				member = self._job(profile)
 				mine, other = self._project(members=[member]), self._project()
 				my_task, other_task = self._task(mine), self._task(other)
 				self.assertEqual(self._level(member, mine), VIEW)
@@ -158,8 +168,8 @@ class TestRoleAccess(FrappeTestCase):
 					self.assertEqual(self._level(member, self._samples()[doctype]), NONE, doctype)
 
 	def test_team_member_sees_only_their_own_timesheets(self):
-		member = _job_user(self.tag, "Team Member")
-		colleague = _job_user(f"{self.tag}b", "Team Member")
+		member = self._job("Team Member")
+		colleague = self._job("Team Member", "b")
 		mine, theirs = self._timesheet(member), self._timesheet(colleague)
 		self.assertEqual(self._level(member, mine), EDIT)
 		self.assertEqual(self._level(member, theirs), NONE)
@@ -169,7 +179,7 @@ class TestRoleAccess(FrappeTestCase):
 
 	def test_lists_hide_record_types_a_job_cannot_see(self):
 		self._samples()  # makes sure at least one Lead exists
-		sales_only = _job_user(self.tag, "Project Manager")
+		sales_only = self._job("Project Manager")
 		with self.set_user(sales_only):
 			self.assertEqual(frappe.get_list("Lead", limit=1), [])
 
@@ -193,7 +203,7 @@ class TestRoleAccess(FrappeTestCase):
 	def test_salespeople_now_receive_leads(self):
 		from vellox_agency.crm_setup import lead_assignment_roster
 
-		seller = _job_user(self.tag, "Sales")
+		seller = self._job("Sales")
 		self.assertIn(seller, lead_assignment_roster())
 
 	# --- gaps from the PR #33 security review and owner decisions of 2026-10-31 ---
@@ -219,7 +229,7 @@ class TestRoleAccess(FrappeTestCase):
 		}
 		project = self._project()
 		for profile, expected in cases.items():
-			user = _job_user(self.tag, profile)
+			user = self._job(profile)
 			samples = {"Contact": self._new("Contact", first_name="Access"), "Item": self._new("Item"),
 			           "Task": self._task(project)}
 			for doctype, level in expected.items():
@@ -227,16 +237,16 @@ class TestRoleAccess(FrappeTestCase):
 					self.assertEqual(self._level(user, samples[doctype]), level)
 
 	def test_timesheet_levels_by_job(self):
-		owner = _job_user(f"{self.tag}o", "Team Member")
+		owner = self._job("Team Member", "o")
 		sheet = self._timesheet(owner)
 		for profile, level in (("Project Manager", EDIT), ("Finance", VIEW), ("Operations", VIEW)):
 			with self.subTest(profile=profile):
-				self.assertEqual(self._level(_job_user(self.tag, profile), sheet), level)
+				self.assertEqual(self._level(self._job(profile), sheet), level)
 
 	def test_money_and_cost_records_follow_the_owner_decision(self):
 		money = ("Sales Order", "Delivery Note", "POS Invoice", "Account", "Cost Center")
 		for profile in ("Sales", "Project Manager", "Operations"):
-			user = _job_user(self.tag, profile)
+			user = self._job(profile)
 			for doctype in ("Sales Order", "Delivery Note", "POS Invoice"):
 				with self.subTest(profile=profile, doctype=doctype):
 					self.assertEqual(self._level(user, self._new(doctype)), NONE)
@@ -246,31 +256,31 @@ class TestRoleAccess(FrappeTestCase):
 				with self.subTest(profile=profile, doctype=doctype), self.set_user(user):
 					self.assertEqual(frappe.get_list(doctype, limit=1), [])
 					self.assertFalse(frappe.has_permission(doctype, "write", doc=self._new(doctype)))
-		finance = _job_user(self.tag, "Finance")
+		finance = self._job("Finance")
 		for doctype in money:
 			with self.subTest(profile="Finance", doctype=doctype):
 				self.assertNotEqual(self._level(finance, self._new(doctype)), NONE)
-		member = _job_user(self.tag, "Team Member")
+		member = self._job("Team Member")
 		for doctype in ("Activity Cost", "Quality Goal", "Project Template"):
 			with self.subTest(profile="Team Member", doctype=doctype):
 				self.assertEqual(self._level(member, self._new(doctype)), NONE)
-		pm = _job_user(self.tag, "Project Manager")
+		pm = self._job("Project Manager")
 		self.assertEqual(self._level(pm, self._new("Project Template")), VIEW)
 		self.assertNotEqual(self._level(pm, self._new("Activity Cost")), NONE)
 
 	def test_view_only_save_is_refused_but_links_still_work(self):
-		finance = _job_user(self.tag, "Finance")
+		finance = self._job("Finance")
 		project = self._project()
 		with self.set_user(finance):
 			fresh = frappe.get_doc("Project", project.name)  # not the ignore_permissions copy
 			fresh.notes = "edited by finance"
 			self.assertRaises(frappe.PermissionError, fresh.save)
-		pm = _job_user(self.tag, "Project Manager")
+		pm = self._job("Project Manager")
 		with self.set_user(pm):
 			self.assertTrue(frappe.has_permission("Customer", "select", doc=frappe.get_doc("Customer", self.customer)))
 
 	def test_team_member_deliverables_and_project_updates_are_scoped(self):
-		member = _job_user(self.tag, "Team Member")
+		member = self._job("Team Member")
 		mine, other = self._project(members=[member]), self._project()
 		my_deliverable, other_deliverable = self._deliverable(mine), self._deliverable(other)
 		self.assertNotEqual(self._level(member, my_deliverable), NONE)
@@ -288,7 +298,7 @@ class TestRoleAccess(FrappeTestCase):
 		self.assertEqual(listed_updates, [updates[0].name])
 
 	def test_team_member_cannot_log_time_on_another_project(self):
-		member = _job_user(self.tag, "Team Member")
+		member = self._job("Team Member")
 		other = self._project()
 		with self.set_user(member):
 			sheet = frappe.get_doc(
@@ -298,7 +308,7 @@ class TestRoleAccess(FrappeTestCase):
 			self.assertRaises(frappe.PermissionError, sheet.insert)
 
 	def test_file_lists_hide_attachments_of_records_a_job_cannot_see(self):
-		member = _job_user(self.tag, "Team Member")
+		member = self._job("Team Member")
 		mine, other = self._project(members=[member]), self._project()
 		files = [
 			frappe.get_doc(
@@ -314,9 +324,9 @@ class TestRoleAccess(FrappeTestCase):
 	def test_shares_and_assignments_cannot_exceed_a_job(self):
 		from frappe.desk.form.assign_to import add as assign
 
-		member = _job_user(self.tag, "Team Member")
-		finance = _job_user(self.tag, "Finance")
-		seller = _job_user(self.tag, "Sales")
+		member = self._job("Team Member")
+		finance = self._job("Finance")
+		seller = self._job("Sales")
 		project = self._project()
 		self.assertRaises(frappe.PermissionError, frappe.share.add, "Project", project.name, member)
 		self.assertRaises(frappe.PermissionError, frappe.share.add, "Project", project.name, finance, write=1)
@@ -327,7 +337,7 @@ class TestRoleAccess(FrappeTestCase):
 		)
 		# Adding someone to Project > Users is how membership is granted; ERPNext
 		# shares the project with them as part of that save, which must still work.
-		pm = _job_user(self.tag, "Project Manager")
+		pm = self._job("Project Manager")
 		with self.set_user(pm):
 			fresh = frappe.get_doc("Project", project.name)
 			fresh.append("users", {"user": member})
@@ -351,7 +361,7 @@ class TestRoleAccess(FrappeTestCase):
 
 		from vellox_agency.tests.test_offer_builder import TEST_PRICE_LIST
 
-		seller = _job_user(self.tag, "Sales")
+		seller = self._job("Sales")
 		with self.set_user(seller):
 			quote = make_quotation(
 				item="_Test Vellox Iso Service" if frappe.db.exists("Item", "_Test Vellox Iso Service") else None,
@@ -359,7 +369,7 @@ class TestRoleAccess(FrappeTestCase):
 				do_not_save=True,
 			)
 			quote.insert()
-		pm = _job_user(self.tag, "Project Manager")
+		pm = self._job("Project Manager")
 		project = self._project()
 		cost_center = frappe.db.get_value("Cost Center", {"company": "_Test Company", "is_group": 0})
 		project.db_set("cost_center", cost_center)
@@ -379,22 +389,37 @@ class TestRoleAccess(FrappeTestCase):
 			frappe.is_whitelisted(fn)
 			return fn(**kwargs)
 
+	def _ensure_fiscal_year(self):
+		"""ERPNext's get_balance_on returns 0 before its permission check when no fiscal year covers today."""
+		from erpnext.accounts.utils import FiscalYearError, get_fiscal_year
+
+		try:
+			get_fiscal_year(frappe.utils.nowdate(), company="_Test Company")
+		except FiscalYearError:
+			year = frappe.utils.getdate().year
+			frappe.get_doc(
+				{"doctype": "Fiscal Year", "year": f"_Test Access {year}", "year_start_date": f"{year}-01-01",
+				 "year_end_date": f"{year}-12-31", "companies": [{"company": "_Test Company"}]}
+			).insert(ignore_permissions=True)
+
 	def test_account_balances_are_only_for_finance_and_managers(self):
 		import json
+
+		self._ensure_fiscal_year()
 
 		account = frappe.db.get_value("Account", {"company": "_Test Company", "is_group": 0})
 		payload = {"accounts": json.dumps([{"value": account, "account_currency": ""}]), "company": "_Test Company"}
 		for profile in ("Sales", "Project Manager", "Operations"):
 			with self.subTest(profile=profile):
 				self.assertRaises(
-					frappe.PermissionError, self._call, _job_user(self.tag, profile),
+					frappe.PermissionError, self._call, self._job(profile),
 					"erpnext.accounts.utils.get_account_balances", **payload,
 				)
-		result = self._call(_job_user(self.tag, "Finance"), "erpnext.accounts.utils.get_account_balances", **payload)
+		result = self._call(self._job("Finance"), "erpnext.accounts.utils.get_account_balances", **payload)
 		self.assertIn("balance", result[0])
 
 	def test_team_member_cannot_log_time_on_another_projects_task(self):
-		member = _job_user(self.tag, "Team Member")
+		member = self._job("Team Member")
 		mine, other = self._project(members=[member]), self._project()
 		foreign_task = self._task(other)
 		with self.set_user(member):
@@ -408,7 +433,7 @@ class TestRoleAccess(FrappeTestCase):
 	def test_rule_breaking_shares_can_be_revoked_and_are_cleaned_up(self):
 		from vellox_agency.security import revoke_shares_beyond_jobs
 
-		seller, finance = _job_user(self.tag, "Sales"), _job_user(self.tag, "Finance")
+		seller, finance = self._job("Sales"), self._job("Finance")
 		project = self._project()
 		legacy = []
 		for user in (seller, finance):  # shares from before this change bypassed the new check
@@ -423,3 +448,71 @@ class TestRoleAccess(FrappeTestCase):
 		revoke_shares_beyond_jobs()
 		self.assertFalse(frappe.db.exists("DocShare", legacy[0]), "Sales cannot see projects at all")
 		self.assertEqual(frappe.db.get_value("DocShare", legacy[1], ["read", "write"]), (1, 0))
+
+	# --- gaps from the third PR #33 review ---------------------------------
+
+	def test_no_balance_endpoint_answers_link_level_jobs(self):
+		self._ensure_fiscal_year()
+		account = frappe.db.get_value("Account", {"company": "_Test Company", "is_group": 0})
+		for profile in ("Sales", "Project Manager", "Operations"):
+			user = self._job(profile)
+			with self.subTest(profile=profile, endpoint="get_default_bank_cash_account"):
+				self.assertRaises(
+					frappe.PermissionError, self._call, user,
+					"erpnext.accounts.doctype.journal_entry.journal_entry.get_default_bank_cash_account",
+					company="_Test Company", account=account,
+				)
+			with self.subTest(profile=profile, check="account read"), self.set_user(user):
+				self.assertFalse(frappe.has_permission("Account", "read", doc=account))
+				self.assertTrue(frappe.has_permission("Account", "select"))
+
+	def test_share_cleanup_survives_shares_of_deleted_records(self):
+		from vellox_agency.security import revoke_shares_beyond_jobs
+
+		seller = self._job("Sales")
+		orphan = frappe.get_doc(
+			{"doctype": "DocShare", "share_doctype": "Project", "share_name": f"PROJ-GONE-{self.tag}",
+			 "user": seller, "read": 1}
+		)
+		orphan.db_insert()
+		revoke_shares_beyond_jobs()
+		self.assertFalse(frappe.db.exists("DocShare", orphan.name))
+
+	def test_team_member_can_be_given_a_task_without_a_project(self):
+		from frappe.desk.form.assign_to import add as assign
+
+		member = self._job("Team Member")
+		task = frappe.get_doc({"doctype": "Task", "subject": f"_Test Access loose {self.tag}"}).insert(
+			ignore_permissions=True
+		)
+		assign({"assign_to": [member], "doctype": "Task", "name": task.name})
+		self.assertEqual(self._level(member, frappe.get_doc("Task", task.name)), EDIT)
+		other = frappe.get_doc({"doctype": "Task", "subject": f"_Test Access loose other {self.tag}"}).insert(
+			ignore_permissions=True
+		)
+		self.assertEqual(self._level(member, other), NONE)
+
+	def test_cleanup_cancels_todos_for_access_it_removes(self):
+		from vellox_agency.security import revoke_shares_beyond_jobs
+
+		pm = self._job("Project Manager")
+		lead = self._samples()["Lead"]
+		share = frappe.get_doc(
+			{"doctype": "DocShare", "share_doctype": "Lead", "share_name": lead.name, "user": pm, "read": 1}
+		)
+		share.db_insert()
+		todo = frappe.get_doc(
+			{"doctype": "ToDo", "allocated_to": pm, "reference_type": "Lead", "reference_name": lead.name,
+			 "description": "legacy assignment"}
+		).insert(ignore_permissions=True)
+		revoke_shares_beyond_jobs()
+		self.assertFalse(frappe.db.exists("DocShare", share.name))
+		self.assertEqual(frappe.db.get_value("ToDo", todo.name, "status"), "Cancelled")
+
+	def test_moving_a_share_to_someone_else_is_checked(self):
+		finance, member = self._job("Finance"), self._job("Team Member")
+		project = self._project()
+		share = frappe.share.add("Project", project.name, finance)
+		share = frappe.get_doc("DocShare", share.name)
+		share.user = member  # same rights, different person
+		self.assertRaises(frappe.PermissionError, share.save, ignore_permissions=True)

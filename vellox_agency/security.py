@@ -56,9 +56,13 @@ _LEVEL_RANK = {NONE: 0, LINK: 1, VIEW: 2, EDIT: 3}
 # submit, cancel, amend and share are refused. Export follows ERPNext's
 # role-level export right, so view-only users can still export what they see.
 VIEW_RIGHTS = frozenset({"read", "select", "report", "print", "email"})
-# "link": hidden from lists and link search, but readable in record checks,
-# because ERPNext reads e.g. income accounts while saving a Quotation.
-LINK_RIGHTS = frozenset({"read", "select"})
+# "link": the record can be referenced but not opened, listed or searched.
+# Accounts and cost centers need this so quotes and projects save: ERPNext's
+# Sales User gets select-only rights on them (_sales_user_select_only), which
+# makes ERPNext's own account checks ask for "select" and closes every
+# endpoint that returns balances to anyone who can read an Account.
+LINK_RIGHTS = frozenset({"select"})
+SELECT_ONLY_FOR_SALES_USER = ("Account", "Cost Center")
 
 # Money and cost records: Finance and Agency Manager only (owner, 2026-10-31).
 MONEY_DOCTYPES = ("Sales Order", "Delivery Note", "POS Invoice", "POS Invoice Merge Log", "Account", "Cost Center")
@@ -222,6 +226,9 @@ def _team_can_access(doc, user: str) -> bool:
 	members = _member_projects(user)
 	if doc.doctype == "Project":
 		return doc.name in members
+	if doc.doctype == "Task" and not doc.get("project"):
+		# A task outside any project: theirs if they created it or it is assigned to them.
+		return doc.is_new() or doc.owner == user or user in frappe.parse_json(doc.get("_assign") or "[]")
 	if doc.doctype != "Timesheet":
 		return doc.get("project") in members
 	if not (doc.is_new() or doc.owner == user):
@@ -247,7 +254,14 @@ def job_access_query(user=None, doctype=None) -> str:
 		return f"`tabTimesheet`.`owner` = {frappe.db.escape(user)}"
 	if doctype == "Project":
 		return f"`tabProject`.`name` in ({_member_projects_sql(user)})"
-	return f"`tab{doctype}`.`project` in ({_member_projects_sql(user)})"
+	condition = f"`tab{doctype}`.`project` in ({_member_projects_sql(user)})"
+	if doctype == "Task":
+		escaped, assigned = frappe.db.escape(user), frappe.db.escape(f'%"{user}"%')
+		condition = (
+			f"({condition} or (ifnull(`tabTask`.`project`, '') = '' and "
+			f"(`tabTask`.`owner` = {escaped} or `tabTask`.`_assign` like {assigned})))"
+		)
+	return condition
 
 
 def job_access_file_query(user=None, doctype=None) -> str:
@@ -414,6 +428,7 @@ def setup_roles_and_permissions() -> None:
 		role.save(ignore_permissions=True)
 
 	_strip_deprecated_doctype_permissions()
+	_sales_user_select_only()
 	setup_job_profiles()
 	frappe.db.commit()
 
@@ -520,6 +535,8 @@ _SHARE_RIGHTS = ("read", "write", "submit", "share", "everyone")
 def _share_grants_more(doc) -> bool:
 	"""True if this DocShare save adds any right it did not have before."""
 	before = None if doc.is_new() else doc.get_doc_before_save()
+	if before and any(doc.get(f) != before.get(f) for f in ("user", "share_doctype", "share_name")):
+		return True  # moved to another person or record: check it like a new share
 	return any(cint(doc.get(right)) > cint(before.get(right) if before else 0) for right in _SHARE_RIGHTS)
 
 
@@ -558,25 +575,65 @@ def revoke_shares_beyond_jobs() -> int:
 				action = "reduce"
 			else:
 				continue
-		if action == "remove":
-			frappe.delete_doc("DocShare", share.name, ignore_permissions=True, flags={"ignore_share_permission": True})
-		else:
-			frappe.db.set_value("DocShare", share.name, {"write": 0, "submit": 0, "share": 0})
+		try:
+			if action == "remove":
+				_remove_share(share)
+			else:
+				frappe.db.set_value("DocShare", share.name, {"write": 0, "submit": 0, "share": 0})
+		except Exception:
+			# One bad row must not stop the run: this also runs inside bench migrate.
+			frappe.log_error(title=f"Vellox share cleanup failed for DocShare {share.name}")
+			continue
 		logger.info("%s share %s (%s %s -> %s)", action, share.name, share.share_doctype, share.share_name, share.user or "everyone")
 		changed += 1
 	return changed
 
 
-@frappe.whitelist()
-def get_account_balances(accounts, company):
-	"""override_whitelisted_methods for erpnext.accounts.utils.get_account_balances.
+def _remove_share(share) -> None:
+	if not frappe.db.exists(share.share_doctype, share.share_name):
+		# DocShare.on_trash comments on the shared record, which is gone.
+		frappe.db.delete("DocShare", share.name)
+		return
+	frappe.delete_doc("DocShare", share.name, ignore_permissions=True, flags={"ignore_share_permission": True})
+	if not share.user:
+		return
+	# An assignment the person can no longer open would just sit in their list.
+	for todo in frappe.get_all(
+		"ToDo",
+		filters={
+			"allocated_to": share.user,
+			"reference_type": share.share_doctype,
+			"reference_name": share.share_name,
+			"status": "Open",
+		},
+		pluck="name",
+	):
+		todo_doc = frappe.get_doc("ToDo", todo)
+		todo_doc.status = "Cancelled"
+		todo_doc.save(ignore_permissions=True)
 
-	ERPNext's version returns balances to anyone who can read an Account, and
-	Sales, PM and Operations may read accounts only so quotes and projects can
-	save ("link" level). Balances stay with Finance and managers (owner, 2026-10-31).
+
+def _sales_user_select_only() -> None:
+	"""ERPNext's Sales User: select, not read, on accounts and cost centers ([P3-140]).
+
+	Read access let Sales, PM and Operations fetch account balances through
+	ERPNext endpoints that only check read (get_balance_on). With select only,
+	ERPNext's own checks ask for select and quotes and projects still save.
+	This sets up Custom DocPerm for these two doctypes, so later ERPNext changes
+	to their standard permissions no longer apply automatically.
 	"""
-	if access_level("Account") not in (None, EDIT):
-		frappe.throw(_("Only Finance and managers can see account balances."), frappe.PermissionError)
-	from erpnext.accounts.utils import get_account_balances as erpnext_get_account_balances
+	from frappe.permissions import setup_custom_perms, update_permission_property
 
-	return erpnext_get_account_balances(accounts, company)
+	for doctype in SELECT_ONLY_FOR_SALES_USER:
+		setup_custom_perms(doctype)
+		row = frappe.db.get_value(
+			"Custom DocPerm",
+			{"parent": doctype, "role": "Sales User", "permlevel": 0, "if_owner": 0},
+			["read", "select"],
+			as_dict=True,
+		)
+		if not row or (not row.read and row.select):
+			continue
+		update_permission_property(doctype, "Sales User", 0, "read", 0, validate=False)
+		update_permission_property(doctype, "Sales User", 0, "select", 1)
+		frappe.clear_cache(doctype=doctype)

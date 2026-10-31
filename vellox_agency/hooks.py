@@ -306,11 +306,6 @@ permission_query_conditions["File"] = ["vellox_agency.security.job_access_file_q
 # Overriding Methods
 # ------------------------------
 #
-# ERPNext returns account balances to anyone who can read an Account ([P3-140]).
-override_whitelisted_methods = {
-	"erpnext.accounts.utils.get_account_balances": "vellox_agency.security.get_account_balances",
-}
-
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "vellox_agency.event.get_events"
 # }
