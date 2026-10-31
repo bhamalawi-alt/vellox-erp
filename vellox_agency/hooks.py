@@ -330,6 +330,9 @@ override_whitelisted_methods = {
 	"frappe.desk.query_report.export_query": "vellox_agency.export_guard.export_report",
 	"frappe.core.doctype.data_export.exporter.export_data": "vellox_agency.export_guard.export_data",
 	"frappe.core.doctype.data_import.data_import.download_template": "vellox_agency.export_guard.download_template",
+	"frappe.utils.print_format.download_multi_pdf": "vellox_agency.export_guard.download_multi_pdf",
+	"frappe.utils.print_format.download_multi_pdf_async": "vellox_agency.export_guard.download_multi_pdf_async",
+	"frappe.contacts.doctype.contact.contact.download_vcards": "vellox_agency.export_guard.download_vcards",
 }
 
 # override_whitelisted_methods = {

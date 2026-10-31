@@ -5,14 +5,22 @@ Sales User is shared by the Sales and Finance jobs, so the rule cannot live in
 role permissions. Instead every route that downloads records is wrapped here
 (hooks.override_whitelisted_methods). Users without a Vellox job (Administrator,
 System Managers) keep ERPNext's own export rights. Viewing, printing and
-emailing single records are unchanged.
+emailing single records are unchanged; bulk print (many records into one PDF)
+and bulk vCard download are list exports and are guarded.
+
+ERPNext gives Finance's standard roles no export rights on these lists, so
+security.grant_finance_export adds them to the Vellox Finance role. This is
+a UI-level control: users who can read records can still fetch them through
+the API.
 """
 
 import frappe
 from frappe import _
+from frappe.contacts.doctype.contact import contact
 from frappe.core.doctype.data_export import exporter
 from frappe.core.doctype.data_import import data_import
 from frappe.desk import query_report, reportview
+from frappe.utils import print_format
 
 from vellox_agency import security
 
@@ -62,3 +70,23 @@ def download_template(doctype: str, export_records: str | None = None, **kwargs)
 	if export_records != "blank_template":
 		_require_export()
 	return _original(data_import.download_template, doctype=doctype, export_records=export_records, **kwargs)
+
+
+@frappe.whitelist()
+def download_multi_pdf(**kwargs):
+	"""List view bulk print: many records in one PDF."""
+	_require_export()
+	return _original(print_format.download_multi_pdf, **kwargs)
+
+
+@frappe.whitelist()
+def download_multi_pdf_async(**kwargs):
+	_require_export()
+	return _original(print_format.download_multi_pdf_async, **kwargs)
+
+
+@frappe.whitelist()
+def download_vcards(**kwargs):
+	"""Contact list bulk vCard download."""
+	_require_export()
+	return _original(contact.download_vcards, **kwargs)
