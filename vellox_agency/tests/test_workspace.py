@@ -73,6 +73,20 @@ class TestVelloxAgencyWorkspace(FrappeTestCase):
 			with self.subTest(report=report):
 				self.assertEqual(frappe.db.get_value("Report", report, "disabled"), 1)
 
+	def test_patch_moves_an_admin_edited_workspace_before_hiding_reports(self):
+		# A site whose workspace was edited after the file's timestamp skips the
+		# file sync; the patch must still move it out of the reports module.
+		from vellox_agency.patches.disable_legacy_reports import execute
+
+		frappe.db.set_value(
+			"Workspace",
+			"Vellox Agency",
+			{"module": "Vellox Agency Reports", "modified": "2099-01-01 00:00:00"},
+			update_modified=False,
+		)
+		execute()
+		self.assertEqual(frappe.db.get_value("Workspace", "Vellox Agency", "module"), "Vellox Agency Projects")
+
 	def test_agency_users_can_open_the_menu(self):
 		from frappe.desk.desktop import get_desktop_page, get_workspace_sidebar_items
 
