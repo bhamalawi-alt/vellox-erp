@@ -529,3 +529,27 @@ class TestRoleAccess(FrappeTestCase):
 			)
 			self.assertRaises(frappe.PermissionError, todo.insert)
 		self.assertEqual(self._level(member, frappe.get_doc("Task", task.name)), NONE)
+
+	def test_team_member_cannot_repoint_or_reopen_an_assignment(self):
+		member = self._job("Team Member")
+		mine = self._project(members=[member])
+		own_task = self._task(mine)
+		hidden = frappe.get_doc({"doctype": "Task", "subject": f"_Test Access hidden2 {self.tag}"}).insert(
+			ignore_permissions=True
+		)
+		with self.set_user(member):
+			todo = frappe.get_doc(
+				{"doctype": "ToDo", "allocated_to": member, "reference_type": "Task",
+				 "reference_name": own_task.name, "description": "own task"}
+			).insert()
+			todo.reference_name = hidden.name
+			self.assertRaises(frappe.PermissionError, todo.save)
+		cancelled = frappe.get_doc(
+			{"doctype": "ToDo", "allocated_to": member, "reference_type": "Task", "reference_name": hidden.name,
+			 "description": "was cancelled", "status": "Cancelled"}
+		).insert(ignore_permissions=True)
+		with self.set_user(member):
+			cancelled = frappe.get_doc("ToDo", cancelled.name)
+			cancelled.status = "Open"
+			self.assertRaises(frappe.PermissionError, cancelled.save)
+		self.assertEqual(self._level(member, frappe.get_doc("Task", hidden.name)), NONE)

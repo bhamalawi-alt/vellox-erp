@@ -306,7 +306,7 @@ def validate_todo_within_access(doc, method=None) -> None:
 	doctype, name = doc.reference_type, doc.reference_name
 	if not doctype or not name or (doctype not in GOVERNED_DOCTYPES and doctype not in TEAM_SCOPED_DOCTYPES):
 		return
-	if not (doc.is_new() or doc.has_value_changed("allocated_to")):
+	if not _todo_grants_access(doc):
 		return
 	# Assignment rules and assign_to (which checks the assigner itself) insert
 	# with ignore_permissions; a user's own ToDo insert never carries that flag.
@@ -320,6 +320,17 @@ def validate_todo_within_access(doc, method=None) -> None:
 			frappe.PermissionError,
 			title=_("Assignment not allowed"),
 		)
+
+
+def _todo_grants_access(doc) -> bool:
+	"""True if this ToDo save could add someone to a record's _assign."""
+	if doc.status != "Open":
+		return False  # cancelled or closed ToDos are left out of _assign
+	before = None if doc.is_new() else doc.get_doc_before_save()
+	if before is None:
+		return True
+	moved = any(doc.get(f) != before.get(f) for f in ("allocated_to", "reference_type", "reference_name"))
+	return moved or before.status != "Open"
 
 
 def remember_project_members(doc, method=None) -> None:
