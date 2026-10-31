@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
@@ -38,6 +40,24 @@ class TestIntake(FrappeTestCase):
 		reset_rate_limit()
 		frappe.db.delete("Lead", {"custom_vellox_source_url": "intake-test"})
 		frappe.db.commit()
+		# If a lead gets assigned, the assignment email would commit mid-test.
+		patcher = patch("frappe.desk.form.assign_to.notify_assignment")
+		patcher.start()
+		self.addCleanup(patcher.stop)
+
+	def test_logged_in_visitor_keeps_their_session(self):
+		# The intake writes as Administrator internally; the caller's request
+		# session must come back intact, or their real session is overwritten.
+		session = frappe.local.session
+		before = (session.user, session.sid, dict(session.data))
+		session.sid, session.data = "REALSID123", frappe._dict(csrf_token="token-abc")
+		try:
+			_submit(email="logged-in@example.com")
+			self.assertEqual(frappe.session.user, before[0])
+			self.assertEqual(frappe.local.session.sid, "REALSID123")
+			self.assertEqual(frappe.local.session.data.get("csrf_token"), "token-abc")
+		finally:
+			frappe.local.session.sid, frappe.local.session.data = before[1], frappe._dict(before[2])
 
 	def test_happy_path_creates_lead_with_consent_and_services(self):
 		with self.set_user("Guest"):

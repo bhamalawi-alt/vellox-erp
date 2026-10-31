@@ -134,9 +134,10 @@ def _restricted_on_lead(user: str) -> bool:
 def sync_lead_assignment_users(doc=None, method=None) -> None:
 	"""Keep the intake rule's users equal to the roster; disable it when nobody qualifies.
 
-	Runs on migrate and as a hook on User, User Permission, Custom DocPerm and
-	Role changes, so granting or removing access updates lead routing right
-	away. An enabled rule with no users would crash Frappe's round-robin.
+	Runs on migrate, hourly, and as a hook on User, User Permission, Custom
+	DocPerm and Role saves. Role and user changes apply right away; permission
+	edits made in Role Permission Manager skip doc hooks, so those apply within
+	the hour. An enabled rule with no users would crash Frappe's round-robin.
 	"""
 	if not frappe.db.exists("Assignment Rule", ASSIGNMENT_RULE):
 		return

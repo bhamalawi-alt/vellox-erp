@@ -143,13 +143,26 @@ class TestLeadRouting(FrappeTestCase):
 			)
 		self.assertTrue(res["ok"])
 		self.assertTrue(frappe.db.exists("Lead", res["lead"]))
+		self.assertEqual(self._assignees(res["lead"]), [blind])  # the share path really ran
+		self.assertTrue(frappe.db.exists("DocShare", {"share_name": res["lead"], "user": blind}))
 
 	def test_setup_replaces_an_administrator_only_rule(self):
-		rule = _rule()
-		rule.set("users", [{"user": "Administrator"}])
-		rule.disabled = 0
-		rule.save(ignore_permissions=True)
 		seller = _user(self._email("routing-after-migrate"), self.seller, LEAD_READER)
-		frappe.db.set_value("Assignment Rule", ASSIGNMENT_RULE, "disabled", 0)
+		# The state on sites installed before this fix, written without firing
+		# any hook, so only the setup step can repair it.
+		frappe.db.delete("Assignment Rule User", {"parent": ASSIGNMENT_RULE})
+		frappe.get_doc(
+			{
+				"doctype": "Assignment Rule User",
+				"parent": ASSIGNMENT_RULE,
+				"parenttype": "Assignment Rule",
+				"parentfield": "users",
+				"user": "Administrator",
+			}
+		).db_insert()
+		frappe.db.set_value("Assignment Rule", ASSIGNMENT_RULE, "disabled", 0, update_modified=False)
+		frappe.clear_document_cache("Assignment Rule", ASSIGNMENT_RULE)
+		self.assertEqual([u.user for u in _rule().users], ["Administrator"])
+
 		setup_lead_assignment_and_sla()
 		self.assertEqual([u.user for u in _rule().users], [seller])

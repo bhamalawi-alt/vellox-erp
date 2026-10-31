@@ -41,6 +41,12 @@ for _doctype in ("User", "User Permission", "Custom DocPerm", "Role"):
 		"after_delete": "vellox_agency.crm_setup.sync_lead_assignment_users",
 	}
 
+# Role Permission Manager edits Lead permissions with direct DB writes that skip
+# doc hooks, so lead routing is also re-synced every hour.
+scheduler_events = {
+	"hourly": ["vellox_agency.crm_setup.sync_lead_assignment_users"],
+}
+
 doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
 }

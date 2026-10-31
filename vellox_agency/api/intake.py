@@ -85,13 +85,19 @@ def _as_intake_writer():
 	Assignment rules share a new lead with any assignee who cannot see it, and
 	Frappe checks that share as the session user; for a Guest request it would
 	fail and the visitor's inquiry would be lost. Only the Lead write runs here.
+
+	frappe.set_user also replaces the session's sid and data and the request's
+	form_dict, so all of them are restored; otherwise a logged-in visitor's
+	real session would be overwritten when the request ends.
 	"""
-	user = frappe.session.user
+	local = frappe.local
+	user, sid, data, form_dict = local.session.user, local.session.sid, local.session.data, local.form_dict
 	frappe.set_user("Administrator")
 	try:
 		yield
 	finally:
 		frappe.set_user(user)
+		local.session.sid, local.session.data, local.form_dict = sid, data, form_dict
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
