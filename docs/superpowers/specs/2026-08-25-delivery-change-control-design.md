@@ -27,12 +27,14 @@ parallel financials — Task, Timesheet, Sales Invoice stay authoritative.
 | Field | Type | Values / rule |
 |---|---|---|
 | custom_vellox_health | Select | `On Track` / `At Risk` / `Off Track`; default On Track |
-| custom_vellox_phase | Select | `Discovery` / `Design` / `Build` / `Launch` / `Post-Launch`; auto-set by template tasks when created |
+| custom_vellox_phase | Select | `Discovery` / `Design` / `Build` / `Launch` / `Post-Launch`; the earliest phase that still has open tasks (each practice-template task carries its step's phase in `Task.custom_vellox_phase`); `Post-Launch` once all phased tasks are completed or cancelled; left as typed on projects without phased tasks |
+| custom_vellox_project_manager | Link User | defaults to whoever creates the project; receives the PM notifications in section 7 |
 | custom_vellox_risks | Small Text | free-text risk register summary (structured register deferred) |
 
 Rules:
 - Health transitions are manual by Project Manager role only.
-- Phase changes are logged via standard Version tracking.
+- Phase changes are logged via standard Version tracking (`track_changes` set on
+  Project by a Property Setter).
 - Milestones = standard Task with `is_milestone = 1` (ERPNext native).
 - Dependencies = standard Task `depends_on` (native).
 
@@ -125,10 +127,14 @@ submitted remain untouched.
   (`attached_to_doctype/name`) — ownership follows the Deliverable.
 - Comments use standard Comment with `custom_vellox_client_visible` flag.
 - Notifications (standard Notification records, fixtures):
-  1. Deliverable sent to client review → assigned PM email.
+  1. Deliverable sent to client review → the project's PM
+     (`Deliverable.project_manager`, copied from the Project on every save).
   2. Client decision recorded → creator.
-  3. CR approved/rejected → project team.
-  4. Revision allowance exhausted → Agency Manager digest.
+  3. CR approved/rejected → project team: PM and Project Users
+     (`Vellox Change Request.team_emails`, refreshed on every save) plus the raiser.
+  4. Revision allowance exhausted → Agency Manager, one email per event
+     (amended 2026-10-31: sent immediately, not as a digest).
+  5. Project created → its PM (added 2026-10-31, [P3-99]).
 - Audit trail = track_changes on all four DocTypes + Workflow-less transition
   log rows (Review Round / status history inside Version rows).
 

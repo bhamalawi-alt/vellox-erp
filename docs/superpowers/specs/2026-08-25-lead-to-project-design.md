@@ -68,9 +68,9 @@ sees tracebacks.
 - **Assignment:** round-robin among users holding role `Vellox Sales`
   (Assignment Rule `Vellox Intake Assignment`, standard DocType).
 - **First-response SLA:** custom field `custom_vellox_first_response_due`
-  = creation + 4 business hours, set on validate. A standard Notification
-  (`Vellox Lead First Response Due`) emails the owner daily for open Leads past
-  due. Closing response = any Comment by assignee or status ≠ Open.
+  = creation + 4 business hours, set on validate. A daily scheduled job
+  (`vellox_agency.lead_followup.send_late_reply_digest`) emails Operations one
+  digest of open Leads past due (amended 2026-10-31, [P3-99]). Closing response = any Comment by assignee or status ≠ Open.
 - **Qualification:** standard Lead status flow Open → Qualified → converted.
   Custom checkbox `custom_vellox_qualified` set during qualification review;
   conversion to Opportunity requires it true (server-side check in
@@ -165,15 +165,18 @@ ONLY reach the intake endpoint.
 
 ## 9. Notifications
 
-1. New inquiry → welcome ack email to prospect (standard Notification, Email
-   Template `Vellox Inquiry Acknowledgement`).
-2. Assignment → in-app + email to assigned sales user.
-3. First-response overdue → daily digest to ops.
-4. Quotation approved → notify sales owner.
-5. Project created → notify assigned PM.
+1. New inquiry → welcome ack email to prospect (standard Notification
+   `Vellox Inquiry Acknowledgement`, only for Leads carrying the website
+   inquiry text; wording is edited on the Notification).
+2. Assignment → in-app + email to assigned sales user (Frappe's own assignment
+   notification; nothing to build).
+3. First-response overdue → daily digest to Vellox Operations.
+4. Quotation approved → notify sales owner (not for auto-approved quotes).
+5. Project created → notify the Project's PM (`custom_vellox_project_manager`).
 
-All notifications are standard Notification records shipped as fixtures;
-no custom mailer code. Failure of email never blocks the transaction
+Notifications 1, 4 and 5 are standard Notification records created by setup
+code. The digest (3) is a scheduled job using `frappe.sendmail`, because a
+Notification sends one email per record and cannot list several. Failure of email never blocks the transaction
 (standard background send).
 
 ## 10. Error handling summary

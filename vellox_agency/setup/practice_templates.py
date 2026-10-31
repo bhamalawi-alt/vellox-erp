@@ -85,7 +85,14 @@ def setup_practice_templates() -> None:
 					"fieldtype": "Data",
 					"read_only": 1,
 					"insert_after": "is_milestone",
-				}
+				},
+				{
+					"fieldname": "custom_vellox_phase",
+					"label": "Phase",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_vellox_default_role",
+				},
 			],
 		},
 		update=True,

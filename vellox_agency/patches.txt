@@ -8,3 +8,4 @@
 vellox_agency.patches.deprecate_duplicates
 vellox_agency.patches.sync_offer_builder_workspace
 vellox_agency.patches.disable_legacy_reports
+vellox_agency.patches.route_delivery_alerts_to_team

@@ -419,6 +419,7 @@ def apply_baseline() -> None:
 		setup_opportunity_pipeline,
 		setup_project_health_field,
 		setup_quotation_estimate_fields,
+		setup_sales_notifications,
 	)
 	from vellox_agency.setup.commercial import setup_commercial_foundation
 	from vellox_agency.setup.practice_templates import setup_practice_templates
@@ -435,6 +436,7 @@ def apply_baseline() -> None:
 	setup_delivery_fields()
 	setup_practice_templates()
 	setup_quotation_estimate_fields()
+	setup_sales_notifications()
 	_ensure_client_comment_permission()
 	setup_roles_and_permissions()
 	revoke_shares_beyond_jobs()
