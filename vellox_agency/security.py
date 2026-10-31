@@ -7,6 +7,7 @@ access is denied server-side, not merely hidden in the UI.
 """
 
 import frappe
+from frappe import _
 
 from vellox_agency.deprecations import DEPRECATION_TARGETS
 from vellox_agency.delivery_setup import setup_delivery_fields
@@ -29,10 +30,12 @@ MANAGEMENT_ROLES = ("System Manager", "Agency Manager")
 # limits each Vellox role to the owner-approved table.
 JOB_PROFILES: dict[str, tuple[str, ...]] = {
 	"Sales": ("Vellox Sales", "Sales User"),
-	"Project Manager": ("Vellox Project Manager", "Projects User", "Sales User"),
+	# Projects Manager: ERPNext puts Project > Users at permlevel 1, writable only
+	# by that role, and project members are how team-member access is granted.
+	"Project Manager": ("Vellox Project Manager", "Projects User", "Projects Manager", "Sales User"),
 	"Team Member": ("Vellox Team Member", "Projects User"),
 	"Finance": ("Vellox Finance", "Accounts User", "Sales User", "Projects User"),
-	"Operations": ("Vellox Operations", "Sales User", "Projects User"),
+	"Operations": ("Vellox Operations", "Sales User", "Projects User", "Projects Manager"),
 	"Agency Manager": (
 		"Agency Manager",
 		"Sales Manager",
@@ -46,14 +49,30 @@ JOB_PROFILES: dict[str, tuple[str, ...]] = {
 }
 
 
-EDIT, VIEW, NONE = "edit", "view", "none"
-_LEVEL_RANK = {NONE: 0, VIEW: 1, EDIT: 2}
-# Rights a view-only job keeps; everything else (write, create, delete,
-# submit, cancel, amend, share, export, import) is refused.
+EDIT, VIEW, LINK, NONE = "edit", "view", "link", "none"
+_LEVEL_RANK = {NONE: 0, LINK: 1, VIEW: 2, EDIT: 3}
+# Rights a view-only job keeps in the record checks; write, create, delete,
+# submit, cancel, amend and share are refused. Export follows ERPNext's
+# role-level export right, so view-only users can still export what they see.
 VIEW_RIGHTS = frozenset({"read", "select", "report", "print", "email"})
+# "link": hidden from lists and link search, but readable in record checks,
+# because ERPNext reads e.g. income accounts while saving a Quotation.
+LINK_RIGHTS = frozenset({"read", "select"})
+
+# Money and cost records: Finance and Agency Manager only (owner, 2026-10-31).
+MONEY_DOCTYPES = ("Sales Order", "Delivery Note", "POS Invoice", "POS Invoice Merge Log", "Account", "Cost Center")
+QUALITY_DOCTYPES = (
+	"Quality Action",
+	"Quality Feedback",
+	"Quality Goal",
+	"Quality Meeting",
+	"Quality Procedure",
+	"Quality Review",
+)
 
 # Record types whose access is capped per job. A job may never get more than
-# its ERPNext roles grant; this only takes rights away.
+# its ERPNext roles grant; this only takes rights away. Anything a job's map
+# leaves out is hidden from that job.
 GOVERNED_DOCTYPES = (
 	"Lead",
 	"Opportunity",
@@ -62,59 +81,86 @@ GOVERNED_DOCTYPES = (
 	"Contact",
 	"Item",
 	"Project",
+	"Project Update",
+	"Project Template",
 	"Task",
 	"Timesheet",
+	"Activity Cost",
 	"Sales Invoice",
 	"Payment Entry",
+	*MONEY_DOCTYPES,
+	*QUALITY_DOCTYPES,
 )
-_TEAM_ACCESS = {"Project": VIEW, "Task": EDIT, "Timesheet": EDIT}
+_QUALITY = dict.fromkeys(QUALITY_DOCTYPES, EDIT)
+_TEAM_ACCESS = {"Project": VIEW, "Project Update": EDIT, "Task": EDIT, "Timesheet": EDIT}
 JOB_ACCESS: dict[str, dict[str, str]] = {
 	"Vellox Sales": {
+		"Account": LINK,
+		"Cost Center": LINK,
 		"Lead": EDIT,
 		"Opportunity": EDIT,
 		"Quotation": EDIT,
 		"Customer": EDIT,
 		"Contact": EDIT,
 		"Item": VIEW,
+		**_QUALITY,
 	},
 	"Vellox Project Manager": {
+		"Account": LINK,
+		"Cost Center": LINK,
 		"Project": EDIT,
+		"Project Update": EDIT,
+		"Project Template": VIEW,
 		"Task": EDIT,
 		"Timesheet": EDIT,
+		"Activity Cost": EDIT,
 		"Customer": VIEW,
 		"Quotation": VIEW,
 		"Contact": VIEW,
 		"Item": VIEW,
+		**_QUALITY,
 	},
 	"Vellox Team Member": dict(_TEAM_ACCESS),
 	"Agency Staff": dict(_TEAM_ACCESS),
 	"Vellox Finance": {
 		"Sales Invoice": EDIT,
 		"Payment Entry": EDIT,
+		**dict.fromkeys(MONEY_DOCTYPES, EDIT),
+		"Activity Cost": EDIT,
 		"Customer": VIEW,
 		"Quotation": VIEW,
 		"Project": VIEW,
+		"Project Update": VIEW,
+		"Project Template": VIEW,
 		"Timesheet": VIEW,
 		"Contact": VIEW,
 		"Item": VIEW,
+		**_QUALITY,
 	},
 	"Vellox Operations": {
+		"Account": LINK,
+		"Cost Center": LINK,
 		"Quotation": EDIT,
 		"Project": EDIT,
+		"Project Update": EDIT,
+		"Project Template": VIEW,
 		"Task": EDIT,
+		"Activity Cost": EDIT,
 		"Lead": VIEW,
 		"Opportunity": VIEW,
 		"Customer": VIEW,
 		"Contact": VIEW,
 		"Timesheet": VIEW,
 		"Item": VIEW,
+		**_QUALITY,
 	},
 	"Agency Manager": dict.fromkeys(GOVERNED_DOCTYPES, EDIT),
 }
-# Team members see only projects they are listed on (Project > Users) and
-# only their own timesheets, unless another job of theirs sees more.
+# Team members see only projects they are listed on (Project > Users), those
+# projects' tasks, deliverables and updates, and only their own timesheets,
+# unless another job of theirs sees more.
 TEAM_ROLES = frozenset({"Vellox Team Member", "Agency Staff"})
-TEAM_SCOPED_DOCTYPES = ("Project", "Task", "Timesheet", "Deliverable")
+TEAM_SCOPED_DOCTYPES = ("Project", "Project Update", "Task", "Timesheet", "Deliverable")
 
 
 def _job_roles(user: str) -> set[str]:
@@ -147,9 +193,9 @@ def _member_projects_sql(user: str) -> str:
 	)
 
 
-def _is_project_member(user: str, project: str | None) -> bool:
-	return bool(project) and frappe.db.exists(
-		"Project User", {"parenttype": "Project", "parent": project, "user": user}
+def _member_projects(user: str) -> set[str]:
+	return set(
+		frappe.get_all("Project User", filters={"parenttype": "Project", "user": user}, pluck="parent")
 	)
 
 
@@ -164,23 +210,33 @@ def job_access_permission(doc, ptype=None, user=None, **kwargs) -> bool | None:
 		return False
 	if level == VIEW and ptype and ptype not in VIEW_RIGHTS:
 		return False
+	if level == LINK and ptype and ptype not in LINK_RIGHTS:
+		return False
 	if doc.doctype in TEAM_SCOPED_DOCTYPES and _team_scoped(user) and not _team_can_access(doc, user):
 		return False
 	return None
 
 
 def _team_can_access(doc, user: str) -> bool:
-	if doc.doctype == "Timesheet":
-		return doc.is_new() or doc.owner == user
+	members = _member_projects(user)
 	if doc.doctype == "Project":
-		return _is_project_member(user, doc.name)
-	return _is_project_member(user, doc.get("project"))
+		return doc.name in members
+	if doc.doctype != "Timesheet":
+		return doc.get("project") in members
+	if not (doc.is_new() or doc.owner == user):
+		return False
+	# Time may only be logged against the member's own projects (or none).
+	for log in doc.get("time_logs") or []:
+		project = log.project or (log.task and frappe.db.get_value("Task", log.task, "project"))
+		if project and project not in members:
+			return False
+	return True
 
 
 def job_access_query(user=None, doctype=None) -> str:
 	"""permission_query_conditions hook: the list-view side of job_access_permission."""
 	user = user or frappe.session.user
-	if access_level(doctype, user) == NONE:
+	if access_level(doctype, user) in (NONE, LINK):
 		return "1=0"
 	if doctype not in TEAM_SCOPED_DOCTYPES or not _team_scoped(user):
 		return ""
@@ -189,6 +245,87 @@ def job_access_query(user=None, doctype=None) -> str:
 	if doctype == "Project":
 		return f"`tabProject`.`name` in ({_member_projects_sql(user)})"
 	return f"`tab{doctype}`.`project` in ({_member_projects_sql(user)})"
+
+
+def job_access_file_query(user=None, doctype=None) -> str:
+	"""permission_query_conditions for File: hide attachments of records the user cannot see.
+
+	Frappe's own File list check is role-level only, so file names attached to
+	hidden or out-of-scope records would otherwise show.
+	"""
+	user = user or frappe.session.user
+	if not _job_roles(user):
+		return ""
+	attached = "ifnull(`tabFile`.`attached_to_doctype`, '')"
+	conditions = []
+	hidden = [doctype for doctype in GOVERNED_DOCTYPES if access_level(doctype, user) in (NONE, LINK)]
+	if hidden:
+		conditions.append(f"{attached} not in ({', '.join(frappe.db.escape(d) for d in hidden)})")
+	if _team_scoped(user):
+		members = _member_projects_sql(user)
+		allowed = [
+			f"(`tabFile`.`attached_to_doctype` = 'Project' and `tabFile`.`attached_to_name` in ({members}))",
+			"(`tabFile`.`attached_to_doctype` = 'Timesheet' and `tabFile`.`attached_to_name` in "
+			f"(select `name` from `tabTimesheet` where `owner` = {frappe.db.escape(user)}))",
+		]
+		for scoped in ("Task", "Deliverable", "Project Update"):
+			allowed.append(
+				f"(`tabFile`.`attached_to_doctype` = '{scoped}' and `tabFile`.`attached_to_name` in "
+				f"(select `name` from `tab{scoped}` where `project` in ({members})))"
+			)
+		scoped_list = ", ".join(f"'{d}'" for d in TEAM_SCOPED_DOCTYPES)
+		conditions.append(f"({attached} not in ({scoped_list}) or {' or '.join(allowed)})")
+	return " and ".join(conditions)
+
+
+def remember_project_members(doc, method=None) -> None:
+	"""Project before_validate hook: note the members this save lists.
+
+	ERPNext shares a project with newly added members inside its own validate,
+	before the Project User rows are written, so the share check below needs
+	the in-memory member list to recognise them as members.
+	"""
+	frappe.flags.setdefault("vellox_project_members", {})[doc.name] = {row.user for row in doc.users}
+
+
+def _being_added_as_member(user: str, project: str) -> bool:
+	return user in (frappe.flags.get("vellox_project_members") or {}).get(project, set())
+
+
+def validate_share_within_job(doc, method=None) -> None:
+	"""DocShare validate hook: a share (or assignment) can never give more than the receiver's job.
+
+	Frappe lets a share override has_permission; the owner decided (2026-10-31)
+	that shares must stay within the person's job. Assigning a record to someone
+	who cannot see it fails here with this message.
+	"""
+	doctype, name = doc.share_doctype, doc.share_name
+	if doctype not in GOVERNED_DOCTYPES and doctype not in TEAM_SCOPED_DOCTYPES:
+		return
+	if doc.everyone:
+		frappe.throw(
+			_("{0} records cannot be shared with everyone; access follows each person's job.").format(_(doctype)),
+			frappe.PermissionError,
+			title=_("Share not allowed"),
+		)
+	user = doc.user
+	level = access_level(doctype, user)
+	wants_change = doc.write or doc.submit or doc.share
+	target = frappe.get_doc(doctype, name)
+	out_of_scope = (
+		doctype in TEAM_SCOPED_DOCTYPES
+		and _team_scoped(user)
+		and not _team_can_access(target, user)
+		and not (doctype == "Project" and not wants_change and _being_added_as_member(user, name))
+	)
+	if level in (NONE, LINK) or (level == VIEW and wants_change) or out_of_scope:
+		frappe.throw(
+			_("Cannot share {0} {1} with {2}: their job does not allow {3} access to it. Change their role instead.").format(
+				_(doctype), frappe.bold(name), frappe.bold(user), _("edit") if wants_change else _("view")
+			),
+			frappe.PermissionError,
+			title=_("Share not allowed"),
+		)
 
 
 def _profile_name(job: str) -> str:
@@ -325,9 +462,8 @@ def has_deprecated_doctype_access(
 def deliverable_permission_query(user):
 	"""permission_query_conditions hook for Deliverable.
 
-	Agency Client users see only client_visible deliverables.
-	All other roles see all deliverables (project-level filtering
-	is deferred to the portal phase when User Permissions are wired).
+	Agency Client users see only client_visible deliverables. Team members
+	are further limited to their projects by job_access_query ([P3-140]).
 	"""
 	if not user:
 		user = frappe.session.user
