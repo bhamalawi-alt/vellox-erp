@@ -347,8 +347,10 @@ def setup_project_health_field() -> None:
 	from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 
 	create_custom_fields({"Project": [PROJECT_HEALTH_FIELD, *PROJECT_DELIVERY_FIELDS]}, update=True)
-	# Phase and manager changes are kept in the Project's history.
-	make_property_setter("Project", None, "track_changes", 1, "Check", for_doctype=True, validate_fields_for_doctype=False)
+	# Phase and manager changes are kept in the Project's history. Created once, so
+	# an admin who turns history off is not overruled on the next migrate.
+	if not frappe.db.exists("Property Setter", {"doc_type": "Project", "property": "track_changes"}):
+		make_property_setter("Project", None, "track_changes", 1, "Check", for_doctype=True, validate_fields_for_doctype=False)
 
 
 def stamp_project_manager(doc, method=None) -> None:
@@ -367,8 +369,10 @@ SALES_NOTIFICATIONS = [
 		"condition": "doc.custom_vellox_inquiry and doc.email_id",
 		"channel": "Email",
 		"recipients": [{"receiver_by_document_field": "email_id"}],
+		# Fixed wording only: anyone can post an inquiry for any address, so echoing
+		# the typed name would let them send their own text from our mail server.
 		"message": (
-			"<p>Dear {{ doc.lead_name or doc.first_name }},</p>"
+			"<p>Hello,</p>"
 			"<p>Thank you for getting in touch. We have received your message and one of our team "
 			"will reply within one working day.</p><p>Vellox Studio</p>"
 		),

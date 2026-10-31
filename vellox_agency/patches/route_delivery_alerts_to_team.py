@@ -10,11 +10,12 @@ import frappe
 from vellox_agency.delivery_setup import REROUTED_NOTIFICATIONS
 
 
+RECIPIENT_FIELDS = ("receiver_by_document_field", "receiver_by_role", "condition", "cc", "bcc")
+
+
 def _recipients(doc) -> list[dict]:
-	return [
-		{k: v for k, v in {"receiver_by_document_field": r.receiver_by_document_field, "receiver_by_role": r.receiver_by_role}.items() if v}
-		for r in doc.recipients
-	]
+	"""Recipient rows as plain dicts; any condition, cc or bcc makes a row non-default."""
+	return [{f: r.get(f) for f in RECIPIENT_FIELDS if r.get(f)} for r in doc.recipients]
 
 
 def execute():

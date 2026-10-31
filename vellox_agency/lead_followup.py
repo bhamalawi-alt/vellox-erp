@@ -12,7 +12,12 @@ DIGEST_LIMIT = 200
 
 
 def overdue_leads() -> list[dict]:
-	return frappe.get_all(
+	"""Unanswered leads past their reply time, most recently due first.
+
+	A comment by the lead's owner or assignee counts as a reply (spec section 3).
+	Runs in a daily background job, so it reads every overdue lead once.
+	"""
+	leads = frappe.get_all(
 		"Lead",
 		# Frappe compares an empty datetime as the earliest date, so "is set" is needed
 		# to keep leads without a reply deadline out.
@@ -21,18 +26,42 @@ def overdue_leads() -> list[dict]:
 			["custom_vellox_first_response_due", "is", "set"],
 			["custom_vellox_first_response_due", "<", now_datetime()],
 		],
-		fields=["name", "lead_name", "company_name", "lead_owner", "custom_vellox_first_response_due"],
-		order_by="custom_vellox_first_response_due asc",
-		limit=DIGEST_LIMIT,
+		fields=["name", "lead_name", "company_name", "lead_owner", "_assign", "custom_vellox_first_response_due"],
+		order_by="custom_vellox_first_response_due desc",
 	)
+	replied = _replied_leads(leads)
+	return [lead for lead in leads if lead.name not in replied]
+
+
+def _replied_leads(leads: list[dict]) -> set[str]:
+	if not leads:
+		return set()
+	commenters = {}
+	for row in frappe.get_all(
+		"Comment",
+		filters={
+			"reference_doctype": "Lead",
+			"reference_name": ["in", [lead.name for lead in leads]],
+			"comment_type": "Comment",
+		},
+		fields=["reference_name", "owner"],
+	):
+		commenters.setdefault(row.reference_name, set()).add(row.owner)
+	replied = set()
+	for lead in leads:
+		responders = {lead.lead_owner, *frappe.parse_json(lead._assign or "[]")}
+		if commenters.get(lead.name, set()) & responders:
+			replied.add(lead.name)
+	return replied
 
 
 def send_late_reply_digest() -> None:
 	"""Scheduled daily: one email to Operations listing overdue leads; nothing if none."""
-	leads = overdue_leads()
+	overdue = overdue_leads()
 	recipients = get_users_with_role(DIGEST_ROLE)
-	if not leads or not recipients:
+	if not overdue or not recipients:
 		return
+	leads = overdue[:DIGEST_LIMIT]
 	esc = frappe.utils.escape_html
 	rows = "".join(
 		f"<tr><td><a href='{get_url_to_form('Lead', lead.name)}'>{esc(lead.name)}</a></td>"
@@ -43,9 +72,11 @@ def send_late_reply_digest() -> None:
 	)
 	frappe.sendmail(
 		recipients=recipients,
-		subject=_("Leads waiting for a reply: {0}").format(len(leads)),
+		subject=_("Leads waiting for a reply: {0}").format(len(overdue)),
 		message=(
-			f"<p>{_('These leads passed their first-reply time and nobody has answered yet.')}</p>"
+			f"<p>{_('These leads passed their first-reply time and nobody has answered yet.')}"
+			+ (f" {_('Showing the {0} most recent.').format(len(leads))}" if len(overdue) > len(leads) else "")
+			+ "</p>"
 			f"<table><tr><th>{_('Lead')}</th><th>{_('Name')}</th><th>{_('Company')}</th>"
 			f"<th>{_('Owner')}</th><th>{_('Reply due')}</th></tr>{rows}</table>"
 		),
