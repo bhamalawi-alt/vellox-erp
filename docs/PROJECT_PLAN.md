@@ -19,7 +19,7 @@ sales → scoping → production → delivery → billing in one system, and the
 use it free.
 
 ### Principles
-1. **Agency-first**: campaign/client/project/timesheet as the core, not warehouses/stock.
+1. **Agency-first**: clients, quotes, projects, deliverables and time as the core, not warehouses/stock.
 2. **Custom Frappe app** on top of a standard ERPNext install (not a fork) — stays upgradeable.
 3. **Open source**: everything we write lives in this repo as a Frappe app; docs are public.
 4. **Vellox-driven**: the first paying user is Vellox Studio; roadmap follows its operations.
@@ -34,45 +34,68 @@ use it free.
 | Database   | MariaDB 10.6+                            | Frappe default |
 | Cache/Queue| Redis                                     | Frappe scheduler + realtime |
 | Frontend   | Frappe Desk (built-in) + custom forms     | Zero-friction admin UI |
-| Client portal | Frappe portal (web pages)              | Client self-service, branded to Vellox |
+| Client portal | Frappe portal (web pages), planned     | Client self-service, branded to Vellox |
 | Dev tool   | Frappe Bench                             | Sites, apps, migrations, backup |
-| Hosting    | Docker (docker-compose / frappe_docker)  | Reproducible, one-command deploy |
+| Hosting    | To be decided at the deployment cards    | See docs/environments.md |
 
 ---
 
-## 3. Modules (MVP)
+## 3. Modules
 
-Custom Frappe app: `vellox_agency`
+> **Status (2026-10-31, [P3-101]).** The prototype modules first planned here
+> were replaced after the 2026-08-14 audit
+> ([docs/audits/2026-08-14-vellox-erp-deep-audit.md](audits/2026-08-14-vellox-erp-deep-audit.md)):
+> ERPNext records are the source of truth, and the app adds the studio's rules
+> around them. What works today is listed in the [README](../README.md#what-works-today).
 
-| Module | DocTypes | Description |
-|--------|----------|-------------|
-| **Clients & Projects** | `Client Account`, `Engagement`, `Agency Project`, `Scope Item`, `Deliverable`, `Project Member` | Client records, retainer/one-off engagements, projects with scope, deliverables with status |
-| **Campaign & Media Buying** | `Agency Campaign`, `Ad Platform Account`, `Media Spend`, `Placement` | Track campaigns, platform accounts (Meta/Google/TikTok), media plans, actual spend vs budget |
-| **Content Production** | `Production Job`, `Production Task`, `Production Asset`, `Revision`, `Approval Request` | Photo/video/design jobs, task pipelines, asset versioning, client approvals |
-| **Invoicing & Billing** | `Agency Invoice`, `Invoice Line`, `Retainer`, `Expense` | Retainers, line-item invoices with computed totals, expenses, payment status |
-| **Timesheets & Resource** | `Agency Timesheet`, `Timesheet Entry`, `Capacity Plan`, `Skill`, `Skill Employee` | Time tracking against projects, capacity, skills, workload |
-| **Reports & Dashboard** | 5 script reports: `Agency KPI`, `Budget vs Actual`, `Agency Utilization`, `Production Pipeline`, `Invoice Register`; `Vellox Agency` workspace page | Real-time dashboards per client, project, team |
+### Built (ERPNext-backed)
+
+| Area | ERPNext records | Vellox additions |
+|---|---|---|
+| Inquiries and sales | Lead, Opportunity, Quotation, Item | Website intake, reply deadlines and routing, qualification gate, stage probabilities, lost reasons, technical proposal, margin estimate, tiered approval, print formats |
+| Delivery | Project, Task, Project Template | Create from quote or practice template, health, phase, project manager, risks, `Deliverable` lifecycle, `Vellox Change Request` |
+| People and access | User, Role Profile | Job profiles and per-job access limits, team-member project scoping |
+| Automation | Notification, scheduler | Seven alerts, hourly and daily jobs |
+
+### Retired prototype modules
+
+| Prototype | Status | Use instead |
+|---|---|---|
+| `Client Account` | **Retired**, new records blocked | Customer / Contact / Address |
+| `Engagement`, `Retainer` | **Retired**, new records blocked | Quotation + Subscription |
+| `Agency Project`, `Scope Item`, `Project Member` | **Retired** (`Agency Project` blocked) | Project, Task, Project User |
+| `Agency Timesheet`, `Timesheet Entry` | **Retired**, new records blocked | Timesheet |
+| `Agency Invoice`, `Invoice Line`, `Expense` | **Retired**, new records blocked | Sales Invoice; Expense Claim or Purchase Invoice |
+| `Agency Campaign`, `Ad Platform Account`, `Media Spend`, `Placement` | **Prototype, not in use**; deferred until campaigns are confirmed as a paid service | — |
+| `Production Job`, `Production Task`, `Production Asset`, `Revision`, `Approval Request` | **Prototype, not in use**; content delivery runs on `Deliverable` | Deliverable |
+| `Capacity Plan`, `Skill`, `Skill Employee` | **Prototype, not in use**; replaced by the capacity plan card [P4-29] | Employee (HRMS), planned |
+| Reports `Agency KPI`, `Agency Utilization`, `Budget vs Actual`, `Invoice Register`, `Production Pipeline` | **Disabled**: they read the retired or prototype DocTypes | New reports planned per phase |
+
+Blocking and data handling for retired ledgers: [docs/migrations/deprecation-map.md](migrations/deprecation-map.md).
 
 ### Reused from ERPNext core (no custom code)
-- CRM (Lead/Opportunity), Quotations, Purchase (vendor media/stock), HR & Payroll
-  (optional), Accounts (GL, payments), Help Desk (Support), Email/Calendar.
+- CRM, Quotations, Purchase, Accounts (GL, payments), Projects, Timesheets,
+  HR & Payroll (optional, via HRMS), Help Desk (Support), Email/Calendar.
 
 ---
 
-## 4. Milestones
+## 4. Roadmap
 
-| # | Milestone | Scope | Est. |
-|---|-----------|-------|------|
-| M0 | **Foundation** | Repo rename + README + license + CI + GitHub org/publication | 1 wk |
-| M1 | **Local env** | MariaDB/Redis/bench install, Frappe+ERPNext site, Vellox brand theme | 1 wk |
-| M2 | **Core CRM + Projects** | Client Account, Engagement, Project, Deliverable + desk UI + permissions | 2 wks |
-| M3 | **Timesheets + Billing** | Agency Timesheet, Capacity, Agency Invoice, Retainer, Expense | 2 wks |
-| M4 | **Campaigns + Production** | Campaign/Media Spend, Production Job/Asset/Approval | 2 wks |
-| M5 | **Reports + Dashboard** | Project P&L, Budget vs Actual, Utilization, KPI dashboard | 1 wk |
-| M6 | **Client Portal** | Branded portal, approvals, invoice view, statement | 2 wks |
-| M7 | **Docker deploy + MVP release** | docker-compose, seed demo data, docs, first public release | 1 wk |
+The milestone table that used to be here (M0–M7) described the retired
+prototype. The live roadmap, with every card's status, is the Trello board
+**Vellox ERP Delivery**: <https://trello.com/b/6a8cd7ae5da50cd22d3356a2>.
+Its phases:
 
-**Total: ~12 weeks to public MVP.**
+| Phase | Content |
+|---|---|
+| P0–P2 | Foundation, CI, security baseline, lead-to-project flow (done) |
+| P3 | Delivery, change control, access by job, scheduled jobs (in progress) |
+| P4 | Team capacity, cost rates and project profit (planning) |
+| P5 | Company books, currencies, billing and retainers |
+| P6+ | Client portal, integrations, go-live |
+
+Each card is built test-first and lands through a reviewed pull request with
+green CI.
 
 ---
 
@@ -86,7 +109,7 @@ because `pyproject.toml` and the `vellox_agency` package sit at the root.
 vellox-erp/                     # repository root = installable Frappe app
 ├── vellox_agency/              # Python package: DocTypes, reports, workspace, setup
 ├── docs/                       # project plan, audits, specs, implementation plans
-├── scripts/                    # clean-install verification and bootstrap scripts
+├── scripts/                    # clean-install verification, backup, restore and deploy scripts
 ├── pyproject.toml              # packaging metadata (flit_core)
 ├── LICENSE                     # MIT
 └── README.md                   # public-facing install + feature docs
@@ -100,7 +123,7 @@ vellox-erp/                     # repository root = installable Frappe app
 
 - **MIT license** — businesses can use, modify, and sell services around it.
 - **Name**: "Vellox ERP Next" — keep ERPNext naming convention to signal the base.
-- **Brand**: Vellox Studio wordmark + a simple studio-appropriate theme on the desk
+- **Brand** (not built yet): Vellox Studio wordmark + a simple studio-appropriate theme on the desk
   (logo in the login page, favicon, primary color).
 - **Attribution**: README credits Frappe/ERPNext; "Built for Vellox Studio, open for all."
 
@@ -110,18 +133,13 @@ vellox-erp/                     # repository root = installable Frappe app
 
 | Risk | Mitigation |
 |------|-----------|
-| Frappe version churn (v15 → v16) | Pin versions in docker, track upstream releases |
-| MariaDB/Redis not installed here | Install via apt per bench docs (allowed unattended) |
-| ERPNext bloat vs agency lean | Our app defines agency DocTypes; disable unused modules |
-| Client portal branding effort | Start with desk-only in MVP; portal in M6 |
+| Frappe version churn (v15 → v16) | Supported-range gate before every migrate; v16 only as an announced release |
+| ERPNext bloat vs agency lean | Use ERPNext records; hide unused modules from each job's workspace |
+| Client portal branding effort | Desk-only until the portal phase (P6) |
 | Resource limits (8GB RAM) | Run single-site local env; use containers for prod |
 
 ---
 
-## 8. Immediate Next Steps (M0/M1)
+## 8. Next steps
 
-1. Keep repository metadata and documentation aligned with `bhamalawi-alt/vellox-erp`.
-2. Write `README.md` + `LICENSE` (MIT) + `.gitignore`.
-3. Install Frappe prerequisites: MariaDB 10.6, Redis, wkhtmltopdf, `bench` via pip.
-4. `bench init`, create site `vellox.localhost`, install ERPNext + create `vellox_agency` app.
-5. Commit everything to the renamed repo.
+See the **01 — Ready** list on the Trello board above.
