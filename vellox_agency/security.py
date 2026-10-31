@@ -8,6 +8,7 @@ access is denied server-side, not merely hidden in the UI.
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from vellox_agency.deprecations import DEPRECATION_TARGETS
 from vellox_agency.delivery_setup import setup_delivery_fields
@@ -227,8 +228,10 @@ def _team_can_access(doc, user: str) -> bool:
 		return False
 	# Time may only be logged against the member's own projects (or none).
 	for log in doc.get("time_logs") or []:
-		project = log.project or (log.task and frappe.db.get_value("Task", log.task, "project"))
-		if project and project not in members:
+		projects = {log.project} if log.project else set()
+		if log.task:
+			projects.add(frappe.db.get_value("Task", log.task, "project"))
+		if any(project and project not in members for project in projects):
 			return False
 	return True
 
@@ -288,6 +291,11 @@ def remember_project_members(doc, method=None) -> None:
 	frappe.flags.setdefault("vellox_project_members", {})[doc.name] = {row.user for row in doc.users}
 
 
+def forget_project_members(doc, method=None) -> None:
+	"""Project on_update hook: the members noted by remember_project_members are stored now."""
+	(frappe.flags.get("vellox_project_members") or {}).pop(doc.name, None)
+
+
 def _being_added_as_member(user: str, project: str) -> bool:
 	return user in (frappe.flags.get("vellox_project_members") or {}).get(project, set())
 
@@ -302,6 +310,8 @@ def validate_share_within_job(doc, method=None) -> None:
 	doctype, name = doc.share_doctype, doc.share_name
 	if doctype not in GOVERNED_DOCTYPES and doctype not in TEAM_SCOPED_DOCTYPES:
 		return
+	if not _share_grants_more(doc):
+		return  # lowering or removing rights is always allowed
 	if doc.everyone:
 		frappe.throw(
 			_("{0} records cannot be shared with everyone; access follows each person's job.").format(_(doctype)),
@@ -375,6 +385,7 @@ def apply_baseline() -> None:
 	setup_quotation_estimate_fields()
 	_ensure_client_comment_permission()
 	setup_roles_and_permissions()
+	revoke_shares_beyond_jobs()
 	_report_lead_routing()
 
 
@@ -501,3 +512,71 @@ def _ensure_client_comment_permission() -> None:
 			meta.save()
 	finally:
 		frappe.flags.in_patch = False
+
+
+_SHARE_RIGHTS = ("read", "write", "submit", "share", "everyone")
+
+
+def _share_grants_more(doc) -> bool:
+	"""True if this DocShare save adds any right it did not have before."""
+	before = None if doc.is_new() else doc.get_doc_before_save()
+	return any(cint(doc.get(right)) > cint(before.get(right) if before else 0) for right in _SHARE_RIGHTS)
+
+
+def revoke_shares_beyond_jobs() -> int:
+	"""Remove or reduce existing shares that give more than the receiver's job allows.
+
+	Shares made before [P3-140], or before someone's job changed, bypassed
+	validate_share_within_job. Runs after every migrate and hourly. Returns
+	the number of shares changed.
+	"""
+	logger = frappe.logger("vellox_share_cleanup", allow_site=True)
+	changed = 0
+	for share in frappe.get_all(
+		"DocShare",
+		filters={"share_doctype": ["in", list(set(GOVERNED_DOCTYPES) | set(TEAM_SCOPED_DOCTYPES))]},
+		fields=["name", "share_doctype", "share_name", "user", "everyone", "write", "submit", "share"],
+	):
+		if share.everyone:
+			action = "remove"
+		elif not share.user or not _job_roles(share.user):
+			continue
+		else:
+			level = access_level(share.share_doctype, share.user)
+			target = frappe.db.exists(share.share_doctype, share.share_name) and frappe.get_doc(
+				share.share_doctype, share.share_name
+			)
+			out_of_scope = (
+				target
+				and share.share_doctype in TEAM_SCOPED_DOCTYPES
+				and _team_scoped(share.user)
+				and not _team_can_access(target, share.user)
+			)
+			if not target or level in (NONE, LINK) or out_of_scope:
+				action = "remove"
+			elif level == VIEW and (share.write or share.submit or share.share):
+				action = "reduce"
+			else:
+				continue
+		if action == "remove":
+			frappe.delete_doc("DocShare", share.name, ignore_permissions=True, flags={"ignore_share_permission": True})
+		else:
+			frappe.db.set_value("DocShare", share.name, {"write": 0, "submit": 0, "share": 0})
+		logger.info("%s share %s (%s %s -> %s)", action, share.name, share.share_doctype, share.share_name, share.user or "everyone")
+		changed += 1
+	return changed
+
+
+@frappe.whitelist()
+def get_account_balances(accounts, company):
+	"""override_whitelisted_methods for erpnext.accounts.utils.get_account_balances.
+
+	ERPNext's version returns balances to anyone who can read an Account, and
+	Sales, PM and Operations may read accounts only so quotes and projects can
+	save ("link" level). Balances stay with Finance and managers (owner, 2026-10-31).
+	"""
+	if access_level("Account") not in (None, EDIT):
+		frappe.throw(_("Only Finance and managers can see account balances."), frappe.PermissionError)
+	from erpnext.accounts.utils import get_account_balances as erpnext_get_account_balances
+
+	return erpnext_get_account_balances(accounts, company)

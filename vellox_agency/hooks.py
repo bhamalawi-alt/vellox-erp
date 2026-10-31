@@ -44,7 +44,10 @@ for _doctype in ("User", "User Permission", "Custom DocPerm", "Role"):
 # Role Permission Manager edits Lead permissions with direct DB writes that skip
 # doc hooks, so lead routing is also re-synced every hour.
 scheduler_events = {
-	"hourly": ["vellox_agency.crm_setup.sync_lead_assignment_users"],
+	"hourly": [
+		"vellox_agency.crm_setup.sync_lead_assignment_users",
+		"vellox_agency.security.revoke_shares_beyond_jobs",
+	],
 }
 
 # Shares and assignments never give more than the receiver's job ([P3-140]).
@@ -58,6 +61,7 @@ doc_events["Project"] = {
 	# Runs before ERPNext's validate, which shares the project with new members.
 	"before_validate": "vellox_agency.security.remember_project_members",
 	"validate": "vellox_agency.change_control.gate_health_transition",
+	"on_update": "vellox_agency.security.forget_project_members",
 }
 
 doc_events["Vellox Change Request"] = {
@@ -302,6 +306,11 @@ permission_query_conditions["File"] = ["vellox_agency.security.job_access_file_q
 # Overriding Methods
 # ------------------------------
 #
+# ERPNext returns account balances to anyone who can read an Account ([P3-140]).
+override_whitelisted_methods = {
+	"erpnext.accounts.utils.get_account_balances": "vellox_agency.security.get_account_balances",
+}
+
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "vellox_agency.event.get_events"
 # }

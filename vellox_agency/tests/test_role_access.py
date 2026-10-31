@@ -367,3 +367,59 @@ class TestRoleAccess(FrappeTestCase):
 			fresh = frappe.get_doc("Project", project.name)
 			fresh.notes = "PM edit with a cost center set"
 			fresh.save()
+
+	# --- gaps from the PR #33 re-review ------------------------------------
+
+	def _call(self, user, cmd, **kwargs):
+		"""Call a whitelisted method as frappe.handler.execute_cmd does, overrides included."""
+		from frappe.handler import get_attr
+
+		fn = get_attr(frappe.override_whitelisted_method(cmd))
+		with self.set_user(user):
+			frappe.is_whitelisted(fn)
+			return fn(**kwargs)
+
+	def test_account_balances_are_only_for_finance_and_managers(self):
+		import json
+
+		account = frappe.db.get_value("Account", {"company": "_Test Company", "is_group": 0})
+		payload = {"accounts": json.dumps([{"value": account, "account_currency": ""}]), "company": "_Test Company"}
+		for profile in ("Sales", "Project Manager", "Operations"):
+			with self.subTest(profile=profile):
+				self.assertRaises(
+					frappe.PermissionError, self._call, _job_user(self.tag, profile),
+					"erpnext.accounts.utils.get_account_balances", **payload,
+				)
+		result = self._call(_job_user(self.tag, "Finance"), "erpnext.accounts.utils.get_account_balances", **payload)
+		self.assertIn("balance", result[0])
+
+	def test_team_member_cannot_log_time_on_another_projects_task(self):
+		member = _job_user(self.tag, "Team Member")
+		mine, other = self._project(members=[member]), self._project()
+		foreign_task = self._task(other)
+		with self.set_user(member):
+			sheet = frappe.get_doc(
+				{"doctype": "Timesheet", "company": "_Test Company",
+				 "time_logs": [{"hours": 1, "from_time": frappe.utils.now_datetime(),
+				                "project": mine.name, "task": foreign_task.name}]}
+			)
+			self.assertRaises(frappe.PermissionError, sheet.insert)
+
+	def test_rule_breaking_shares_can_be_revoked_and_are_cleaned_up(self):
+		from vellox_agency.security import revoke_shares_beyond_jobs
+
+		seller, finance = _job_user(self.tag, "Sales"), _job_user(self.tag, "Finance")
+		project = self._project()
+		legacy = []
+		for user in (seller, finance):  # shares from before this change bypassed the new check
+			share = frappe.get_doc(
+				{"doctype": "DocShare", "share_doctype": "Project", "share_name": project.name, "user": user,
+				 "read": 1, "write": 1}
+			)
+			share.db_insert()
+			legacy.append(share.name)
+		frappe.share.set_permission("Project", project.name, seller, "write", 0)  # lowering rights is allowed
+		self.assertEqual(frappe.db.get_value("DocShare", legacy[0], "write"), 0)
+		revoke_shares_beyond_jobs()
+		self.assertFalse(frappe.db.exists("DocShare", legacy[0]), "Sales cannot see projects at all")
+		self.assertEqual(frappe.db.get_value("DocShare", legacy[1], ["read", "write"]), (1, 0))
