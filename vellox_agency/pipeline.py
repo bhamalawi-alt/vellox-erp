@@ -3,6 +3,9 @@
 import frappe
 from frappe import _
 
+STALE_DAYS = 14
+CLOSED_STATUSES = ("Lost", "Closed", "Converted")
+
 
 def apply_stage_probability(doc, method=None) -> None:
 	if doc.doctype != "Opportunity" or not doc.sales_stage:
@@ -65,7 +68,7 @@ def weighted_pipeline(user=None) -> list[dict]:
 	]
 
 
-def get_stale_opportunities(days: int = 14, user=None) -> list[dict]:
+def get_stale_opportunities(days: int = STALE_DAYS, user=None) -> list[dict]:
 	"""Open opportunities untouched for N days — feeds stale reminders."""
 	from frappe.utils import add_to_date, now_datetime
 
@@ -74,7 +77,7 @@ def get_stale_opportunities(days: int = 14, user=None) -> list[dict]:
 		"Opportunity",
 		filters={
 			"modified": ("<", cutoff),
-			"status": ("not in", ["Lost", "Closed", "Converted"]),
+			"status": ("not in", CLOSED_STATUSES),
 		},
 		fields=["name", "party_name", "sales_stage", "custom_vellox_probability", "modified"],
 		order_by="modified asc",

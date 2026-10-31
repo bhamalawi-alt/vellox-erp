@@ -55,6 +55,9 @@ class _GapsCase(FrappeTestCase):
 	def setUp(self):
 		# The digest goes to every Operations user; keep other tests' users out of it.
 		frappe.db.delete("Email Queue")
+		from vellox_agency.scheduled import reset_daily_guards
+
+		reset_daily_guards()  # each test runs the daily digest afresh
 
 	def _project(self, **kw):
 		return frappe.get_doc(

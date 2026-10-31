@@ -57,6 +57,10 @@ def _replied_leads(leads: list[dict]) -> set[str]:
 
 def send_late_reply_digest() -> None:
 	"""Scheduled daily: one email to Operations listing overdue leads; nothing if none."""
+	from vellox_agency.scheduled import first_run_today
+
+	if not first_run_today("late_reply_digest"):
+		return
 	overdue = overdue_leads()
 	recipients = get_users_with_role(DIGEST_ROLE)
 	if not overdue or not recipients:
