@@ -45,11 +45,11 @@ def validate_change_request(doc, method=None) -> None:
 		return
 	# Notifications can only address fields on the record itself ([P3-99]).
 	doc.team_emails = project_team_emails(doc.project)
-	old_status = None
-	if not doc.is_new():
-		old_status = frappe.db.get_value("Vellox Change Request", doc.name, "status")
+	# A new request counts as moving from Draft, so it cannot skip the checks
+	# below by being saved as Approved or Implemented straight away ([P3-146]).
+	old_status = "Draft" if doc.is_new() else frappe.db.get_value("Vellox Change Request", doc.name, "status")
 
-	if old_status and old_status != doc.status:
+	if old_status and old_status != (doc.status or "Draft"):
 		allowed = CR_LEGAL_TRANSITIONS.get(old_status, set())
 		if doc.status not in allowed:
 			frappe.throw(
@@ -58,11 +58,14 @@ def validate_change_request(doc, method=None) -> None:
 			)
 
 		if doc.status == "Approved":
-			required = "Agency Manager" if flt_(doc.price_impact) else "Vellox Project Manager"
-			needed = {"System Manager", required}
-			if not (needed & _cr_roles()):
+			# Delivery plan section 8: a Project Manager approves when the price is
+			# unchanged; the Agency Manager approves any request.
+			approvers = ["Agency Manager"] if flt_(doc.price_impact) else ["Vellox Project Manager", "Agency Manager"]
+			if not ({"System Manager", *approvers} & _cr_roles()):
 				frappe.throw(
-					_("Only {0} can approve this change request.").format(frappe.bold(required)),
+					_("Only {0} can approve this change request.").format(
+						_(" or ").join(frappe.bold(role) for role in approvers)
+					),
 					frappe.PermissionError,
 				)
 			doc.approved_by = frappe.session.user
@@ -80,6 +83,8 @@ def validate_change_request(doc, method=None) -> None:
 
 def shift_schedule_on_approval(doc, method=None) -> None:
 	if doc.doctype != "Vellox Change Request" or doc.status != "Approved":
+		return
+	if doc.is_new():  # refused by validate_change_request; never move the date for it
 		return
 	if doc.approved_by:  # already stamped earlier — apply once
 		return

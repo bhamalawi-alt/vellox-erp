@@ -138,11 +138,13 @@ def _unique_project_name(base: str) -> str:
 	return name
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_project_from_template(template_name: str, customer: str | None = None):
 	"""Create a live Project from a practice template's ordered steps."""
 	from vellox_agency.setup.practice_templates import get_steps, STEPS_DOCTYPE
 
+	if not set(CREATION_ROLES) & set(frappe.get_roles()):
+		frappe.throw(_("Not permitted to create Projects."), frappe.PermissionError)
 	_ensure_acceptance_fields()
 	if not frappe.db.exists("Project Template", template_name):
 		frappe.throw(_("Project Template {0} not found.").format(template_name))

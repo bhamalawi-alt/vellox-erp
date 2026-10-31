@@ -105,8 +105,10 @@ class TestDeliverableVersions(FrappeTestCase):
                 "reviewed_on": frappe.utils.now_datetime(),
             }],
         }).insert(ignore_permissions=True)
-        # 1 round consumed, allowance=1 → no exhaustion yet
+        # 1 round consumed, allowance=1 → no exhaustion yet. Each step is saved,
+        # as the form does: validate checks every move ([P3-146]).
         transition(doc, "submit_for_review")
+        doc.save()
         self.assertEqual(doc.status, "Internal Review")
 
         # Now add a second round (exceeds allowance=1)

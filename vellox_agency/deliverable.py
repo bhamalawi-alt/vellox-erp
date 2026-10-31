@@ -1,7 +1,9 @@
 """Vellox Deliverable lifecycle engine.
 
-All status transitions flow through transition(doc, action).  The docstatus
-column stays 0 (non-submittable); track_changes captures the audit trail.
+transition(doc, action) moves a deliverable by named action; validate enforces
+the same status order on every save, so the form and the API follow it too
+([P3-146]). The docstatus column stays 0 (non-submittable); track_changes
+captures the audit trail.
 """
 
 import frappe
@@ -28,6 +30,7 @@ LEGAL_TRANSITIONS = {
     },
 }
 # Approved and Cancelled are terminal — no outgoing transitions.
+ALLOWED_MOVES = {status: set(actions.values()) for status, actions in LEGAL_TRANSITIONS.items()}
 
 REQUIRE_CLIENT_REVIEW_FOR_APPROVE = True
 
@@ -71,9 +74,10 @@ def transition(doc, action):
 
 
 def validate_deliverable(doc, method=None):
-    """Hook: enforce version immutability on every save."""
+    """Hook: enforce the status order and version immutability on every save."""
     if not doc.is_new():
         _enforce_version_immutability(doc)
+    _enforce_status_move(doc)
     # Notification conditions cannot count child rows, so the exhausted check
     # reaches the "Revision Allowance Exhausted" condition as a per-save flag.
     # Set here, not in transition(), because users also change status on the form.
@@ -81,6 +85,35 @@ def validate_deliverable(doc, method=None):
     # Notifications can only address fields on the record itself ([P3-99]).
     # Falls back to the creator, who received this alert before [P3-99].
     doc.project_manager = frappe.db.get_value("Project", doc.project, "custom_vellox_project_manager") or doc.owner
+
+
+def _enforce_status_move(doc):
+    """Allow only the moves transition() allows, whoever saves the deliverable."""
+    before = None if doc.is_new() else doc.get_doc_before_save()
+    new = doc.status or "Draft"
+    if not before:
+        if new != "Draft":
+            frappe.throw(_("A new deliverable starts as a Draft."), frappe.ValidationError)
+        return
+    old = before.status or "Draft"
+    if old == new:
+        return
+    if new not in ALLOWED_MOVES.get(old, set()):
+        frappe.throw(
+            _("A deliverable cannot move from {0} to {1}.").format(frappe.bold(old), frappe.bold(new)),
+            frappe.ValidationError,
+        )
+    if old == "Changes Requested" and new == "Internal Review" and _is_revision_exhausted(doc):
+        frappe.throw(
+            _("Revision allowance ({0}) exhausted. A Change Request is required, then a manager "
+              "can raise the allowance for further review rounds.").format(doc.revision_allowance),
+            frappe.ValidationError,
+        )
+    if new == "Approved":
+        _require_approved_client_round(doc)
+        doc.accepted_on = doc.accepted_on or frappe.utils.now_datetime()
+        doc.accepted_by = doc.accepted_by or frappe.session.user
+    _sync_current_version(doc)
 
 
 def _enforce_version_immutability(doc):
