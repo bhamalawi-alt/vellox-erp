@@ -19,16 +19,16 @@ standard ERPNext records.
 
 | Area | What it does | Built on |
 |---|---|---|
-| **Website inquiries** | Guest-only intake endpoint `vellox_agency.api.intake.submit_inquiry` with a honeypot, limits per visitor (5/hour, IPv6 per /64) and per mailbox (3/day), and repeat inquiries merged into the existing Lead. The prospect gets an acknowledgement email | Lead |
-| **Lead follow-up** | Each Lead gets a 4-hour first-reply deadline; new Leads are shared round-robin among active Vellox Sales / Agency Manager users who can see Leads (routing switches itself off if nobody qualifies); a daily email lists leads still waiting for a reply | Lead, Assignment Rule |
-| **Sales pipeline** | Opportunities need a qualified Lead; four sales stages carry win probabilities (10/30/60/80%); a lost reason is required; each owner gets a daily list of opportunities with no update in 14 days | Opportunity, Sales Stage |
+| **Website inquiries** | Public intake endpoint `vellox_agency.api.intake.submit_inquiry` (open to guests) with a honeypot, limits per visitor (5/hour, IPv6 per /64) and per mailbox (3/day), and repeat inquiries merged into the existing Lead. The prospect gets an acknowledgement email | Lead |
+| **Lead follow-up** | Each Lead gets a 4-hour first-reply deadline; new Leads are assigned round-robin to active Vellox Sales users who can see every Lead, or to Agency Managers if no salesperson qualifies (routing switches itself off if nobody does); a daily email to Operations lists leads still waiting for a reply | Lead, Assignment Rule |
+| **Sales pipeline** | An Opportunity created from a Lead needs that Lead marked Qualified; four sales stages carry win probabilities (10/30/60/80%); a lost reason is required; each owner gets a daily list of opportunities with no update in 14 days | Opportunity, Sales Stage |
 | **Quotes** | Seven service Items with EGP and USD price lists; a technical proposal built from the selected services; an estimate panel (hours, rates, vendor cost) showing margin; three print formats (technical, financial, combined) | Quotation, Item |
-| **Quote approval** | Three tiers by discount and margin (automatic / Operations / Agency Manager). An **Approve Quote** button is the only way to approve, and any change to customer, items, prices, discounts, taxes or margin sends the quote back to Pending. Submitting needs an approval | Quotation |
-| **Projects** | **Create Project** from a submitted quote, or from one of seven practice templates with ordered steps, milestones, dependencies and default roles. Expected margin is frozen at creation. Projects have Health (managers only), Phase (follows the tasks), Project Manager and Risks, with change history | Project, Task, Project Template |
-| **Deliverables** | Draft → internal review → client review → approved, with immutable versions, review rounds, a revision allowance that requires a Change Request once used up, and a client-visible flag | `Deliverable` (+ version and review-round tables) |
-| **Change requests** | Approval by role (Agency Manager when the price changes), schedule impact moves the project end date, and a price impact needs a submitted amendment quote | `Vellox Change Request` |
-| **Alerts** | Email notifications for: inquiry received, quote approved, project created, deliverable sent to client review, client decision, Change Request decision (project team), revision allowance used up | Notification |
-| **Access by job** | Role profiles for Sales, Project Manager, Team Member, Finance, Operations and Agency Manager. Each job sees only what it needs (money and cost data stay with Finance and managers), team members see only their projects, and sharing or assigning cannot give anyone more than their job allows | Role Profile, permission hooks |
+| **Quote approval** | Three tiers by discount and margin: automatic (discount ≤5% and margin ≥40%), Operations (≤15% and ≥25%), otherwise Agency Manager. Outside the automatic tier, the **Approve Quote** button is the only way to approve, and any change to customer, items, prices, discounts, taxes or margin sends the quote back to Pending. Submitting needs an approval | Quotation |
+| **Projects** | **Create Project** from a submitted quote; its tasks come from the seven practice templates (ordered steps, milestones, dependencies, default roles). A project can also be created from a template through the API. A quote's expected margin is frozen on the project. Projects have Health (managers only), Phase (follows the tasks), Project Manager and Risks, with change history | Project, Task, Project Template |
+| **Deliverables** | Status, immutable versions (enforced on save), review rounds, a revision allowance (when it is used up, the Agency Manager gets an alert) and a client-visible flag that limits what client users see. The status order and the revision-allowance block are not yet enforced on the form ([P3-146]) | `Deliverable` (+ version and review-round tables) |
+| **Change requests** | Moving a request from Under Review to Approved needs a Project Manager, or the Agency Manager when the price changes; approval moves the project end date by the schedule impact; a price change needs a submitted amendment quote before the request is marked Implemented. A request saved straight as Approved still skips these checks ([P3-146]) | `Vellox Change Request` |
+| **Alerts** | Email notifications for: inquiry acknowledgement (to the prospect), quote approved by hand (to its creator), project created (to its PM), deliverable sent to client review, client decision, Change Request decision (project team), revision allowance used up | Notification |
+| **Access by job** | Role profiles for Sales, Project Manager, Team Member, Finance, Operations and Agency Manager. Each job sees only what it needs (invoices, payments, orders and accounts stay with Finance and the Agency Manager), team members see only their projects, and sharing or assigning cannot give anyone more than their job allows | Role Profile, permission hooks |
 | **Workspace** | A *Vellox Agency* desk workspace with shortcuts to clients, projects, timesheets, invoices and offers | Workspace |
 | **Scheduled jobs** | Hourly: lead-routing sync and removal of shares beyond a person's job. Daily: late-reply digest and stale-opportunity reminders (each sent at most once a day) | Frappe scheduler |
 
@@ -44,8 +44,8 @@ They are **not** part of the product; see [docs/PROJECT_PLAN.md](docs/PROJECT_PL
 - **Prototype, never built out** (no business logic, not on the workspace):
   campaigns and media buying, content production, capacity plans and skills.
 - **Disabled reports**: `Agency KPI`, `Agency Utilization`, `Budget vs Actual`,
-  `Invoice Register`, `Production Pipeline` read the retired ledgers and are
-  turned off.
+  `Invoice Register`, `Production Pipeline` read the retired or prototype
+  DocTypes and are turned off.
 
 ## Tech stack
 
@@ -100,7 +100,7 @@ migrate (`vellox_agency.security.apply_baseline`).
 The development machine runs MariaDB in Docker rather than installing it:
 
 ```bash
-docker run -d --name vellox-mariadb -p 3306:3306 \
+docker run -d --name vellox-mariadb -p 127.0.0.1:3306:3306 \
   -e MARIADB_ROOT_PASSWORD=<choose-one> mariadb:10.6 \
   --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 ```

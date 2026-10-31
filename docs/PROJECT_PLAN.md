@@ -19,7 +19,7 @@ sales → scoping → production → delivery → billing in one system, and the
 use it free.
 
 ### Principles
-1. **Agency-first**: campaign/client/project/timesheet as the core, not warehouses/stock.
+1. **Agency-first**: clients, quotes, projects, deliverables and time as the core, not warehouses/stock.
 2. **Custom Frappe app** on top of a standard ERPNext install (not a fork) — stays upgradeable.
 3. **Open source**: everything we write lives in this repo as a Frappe app; docs are public.
 4. **Vellox-driven**: the first paying user is Vellox Studio; roadmap follows its operations.
@@ -61,14 +61,15 @@ use it free.
 
 | Prototype | Status | Use instead |
 |---|---|---|
-| `Client Account`, `Engagement`, `Retainer` | **Retired**, new records blocked | Customer / Contact; Quotation + Subscription |
+| `Client Account` | **Retired**, new records blocked | Customer / Contact / Address |
+| `Engagement`, `Retainer` | **Retired**, new records blocked | Quotation + Subscription |
 | `Agency Project`, `Scope Item`, `Project Member` | **Retired** (`Agency Project` blocked) | Project, Task, Project User |
 | `Agency Timesheet`, `Timesheet Entry` | **Retired**, new records blocked | Timesheet |
 | `Agency Invoice`, `Invoice Line`, `Expense` | **Retired**, new records blocked | Sales Invoice; Expense Claim or Purchase Invoice |
 | `Agency Campaign`, `Ad Platform Account`, `Media Spend`, `Placement` | **Prototype, not in use**; deferred until campaigns are confirmed as a paid service | — |
 | `Production Job`, `Production Task`, `Production Asset`, `Revision`, `Approval Request` | **Prototype, not in use**; content delivery runs on `Deliverable` | Deliverable |
 | `Capacity Plan`, `Skill`, `Skill Employee` | **Prototype, not in use**; replaced by the capacity plan card [P4-29] | Employee (HRMS), planned |
-| Reports `Agency KPI`, `Agency Utilization`, `Budget vs Actual`, `Invoice Register`, `Production Pipeline` | **Disabled**: they read the retired ledgers | New reports planned per phase |
+| Reports `Agency KPI`, `Agency Utilization`, `Budget vs Actual`, `Invoice Register`, `Production Pipeline` | **Disabled**: they read the retired or prototype DocTypes | New reports planned per phase |
 
 Blocking and data handling for retired ledgers: [docs/migrations/deprecation-map.md](migrations/deprecation-map.md).
 
@@ -108,7 +109,7 @@ because `pyproject.toml` and the `vellox_agency` package sit at the root.
 vellox-erp/                     # repository root = installable Frappe app
 ├── vellox_agency/              # Python package: DocTypes, reports, workspace, setup
 ├── docs/                       # project plan, audits, specs, implementation plans
-├── scripts/                    # clean-install verification and bootstrap scripts
+├── scripts/                    # clean-install verification, backup, restore and deploy scripts
 ├── pyproject.toml              # packaging metadata (flit_core)
 ├── LICENSE                     # MIT
 └── README.md                   # public-facing install + feature docs
@@ -122,7 +123,7 @@ vellox-erp/                     # repository root = installable Frappe app
 
 - **MIT license** — businesses can use, modify, and sell services around it.
 - **Name**: "Vellox ERP Next" — keep ERPNext naming convention to signal the base.
-- **Brand**: Vellox Studio wordmark + a simple studio-appropriate theme on the desk
+- **Brand** (not built yet): Vellox Studio wordmark + a simple studio-appropriate theme on the desk
   (logo in the login page, favicon, primary color).
 - **Attribution**: README credits Frappe/ERPNext; "Built for Vellox Studio, open for all."
 
@@ -132,8 +133,8 @@ vellox-erp/                     # repository root = installable Frappe app
 
 | Risk | Mitigation |
 |------|-----------|
-| Frappe version churn (v15 → v16) | Pin versions in docker, track upstream releases |
-| ERPNext bloat vs agency lean | Our app defines agency DocTypes; disable unused modules |
+| Frappe version churn (v15 → v16) | Supported-range gate before every migrate; v16 only as an announced release |
+| ERPNext bloat vs agency lean | Use ERPNext records; hide unused modules from each job's workspace |
 | Client portal branding effort | Desk-only until the portal phase (P6) |
 | Resource limits (8GB RAM) | Run single-site local env; use containers for prod |
 

@@ -41,8 +41,8 @@ jobs:
         with:
           node-version: 20
 
-      # Local equivalent: brew services start mariadb@10.6 plus
-      # /usr/local/etc/my.cnf.d/frappe.cnf charset settings.
+      # Local equivalent: the vellox-mariadb Docker container (see README), started
+      # with the same utf8mb4 charset settings.
       - name: Tune MariaDB for Frappe
         run: |
           docker exec ${{ job.services.mariadb.id }} bash -c \
@@ -50,7 +50,7 @@ jobs:
           docker restart ${{ job.services.mariadb.id }}
           sleep 8
 
-      # Local equivalent: brew services start redis
+      # Local equivalent: the redis instances `bench start` runs
       - name: Install Redis
         run: |
           sudo apt-get update -y
@@ -91,7 +91,7 @@ jobs:
             --install-app vellox_agency
           bench --site ci.localhost set-config allow_tests true
 
-      # Local equivalent: bench --site vellox.localhost migrate
+      # Local equivalent: bench --site vellox-test.localhost migrate
       - name: Migrate
         working-directory: frappe-bench
         run: bench --site ci.localhost migrate
@@ -100,14 +100,14 @@ jobs:
         working-directory: frappe-bench/apps/vellox_agency
         run: python -m compileall -q vellox_agency
 
-      # Local equivalent: node --test <file>
+      # Local equivalent: node --test vellox_agency/tests/js/*.js
       - name: JavaScript tests
         if: hashFiles('vellox_agency/tests/js/**/*.js') != ''
         working-directory: frappe-bench/apps/vellox_agency
         run: |
           find vellox_agency/tests/js -name "*.js" -print0 | xargs -0 -n1 node --test
 
-      # Local equivalent: bench --site vellox.localhost run-tests --app vellox_agency
+      # Local equivalent: bench --site vellox-test.localhost run-tests --app vellox_agency
       - name: Frappe tests (full app suite)
         working-directory: frappe-bench
         run: bench --site ci.localhost run-tests --app vellox_agency

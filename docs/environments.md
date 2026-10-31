@@ -29,10 +29,10 @@ referenced by CI, scripts, or documentation. (Updated 2026-10-31, [P3-101].)
 | 8080 | ad-hoc `bench serve` for quick checks | started manually per session |
 | 11000 / 13000 | redis_queue / redis_cache of whichever bench was initialized first | see note |
 
-> Both local benches default to ports 11000/13000. The one initialized
-> second auto-increments (e.g. 11001/13001) via its own
-> `sites/common_site_config.json`. Always confirm a bench's ports from its
-> config before starting services.
+> A bench uses ports 11000/13000 by default; a second bench on the same
+> machine (such as the clean-install scratch bench) auto-increments them via its
+> own `sites/common_site_config.json`. Confirm a bench's ports from its config
+> before starting services.
 
 ## Database ownership
 
@@ -45,12 +45,12 @@ referenced by CI, scripts, or documentation. (Updated 2026-10-31, [P3-101].)
 
 | Setting | Development | CI | Staging (template) | Production (template) |
 |---|---|---|---|---|
-| `allow_tests` | false (true on the local test site) | true | false | false |
+| `allow_tests` | true today; should be false (only the local test site needs it) | true | false | false |
 | `developer_mode`/`server_script_enabled` | off (set explicitly when needed) | off | off | off |
 | `pause_scheduler` | acceptable | n/a | required until UAT says otherwise | required until go-live step |
 | `mute_emails` | true (plus a placeholder outgoing Email Account) | n/a | decided at UAT | false |
 | Demo/seed data | `DEMO`-prefixed sample records and one test login per job | none beyond fixtures | controlled demo/UAT set ([P7-48]) | migrated real data only |
-| Credentials location | local shell env only | GitHub-managed, none committed | deployment secret store | deployment secret store |
+| Credentials location | a private folder outside the repository, plus shell env; never committed | GitHub-managed, none committed | deployment secret store | deployment secret store |
 
 Staging and production configuration MUST NOT contain development
 credentials; each gets its own database user, passwords from the secret
