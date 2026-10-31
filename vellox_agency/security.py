@@ -167,6 +167,36 @@ JOB_ACCESS: dict[str, dict[str, str]] = {
 TEAM_ROLES = frozenset({"Vellox Team Member", "Agency Staff"})
 TEAM_SCOPED_DOCTYPES = ("Project", "Project Update", "Task", "Timesheet", "Deliverable")
 
+# Deleting (owner, 2026-11-01, [P3-141]): the Agency Manager deletes any of these;
+# everyone else only records they created that are still drafts. None means
+# managers only, even when the record is new.
+DELETE_MANAGER_ROLES = frozenset({"Agency Manager"})
+DRAFT_STATUSES: dict[str, tuple[str, ...] | None] = {
+	# ERPNext's Sales User cannot delete Leads at all, so they stay managers only.
+	"Lead": None,
+	"Opportunity": ("Open",),
+	"Task": ("Open", "Template"),
+	"Project": None,
+	"Customer": None,
+	"Contact": None,
+}
+SUBMITTABLE_DRAFTS = ("Quotation", "Timesheet")  # a draft is docstatus 0
+DELETE_GOVERNED_DOCTYPES = (*DRAFT_STATUSES, *SUBMITTABLE_DRAFTS)
+
+
+def _is_own_draft(doc, user: str) -> bool:
+	if doc.get("owner") != user:
+		return False
+	if doc.doctype in SUBMITTABLE_DRAFTS:
+		return doc.get("docstatus") == 0
+	statuses = DRAFT_STATUSES.get(doc.doctype)
+	return bool(statuses) and doc.get("status") in statuses
+
+
+def _may_delete(doc, user: str) -> bool:
+	jobs = _job_roles(user)
+	return not jobs or bool(jobs & DELETE_MANAGER_ROLES) or _is_own_draft(doc, user)
+
 
 def _job_roles(user: str) -> set[str]:
 	"""The user's Vellox job roles, or an empty set when no cap applies."""
@@ -218,6 +248,8 @@ def job_access_permission(doc, ptype=None, user=None, **kwargs) -> bool | None:
 	if level == LINK and ptype and ptype not in LINK_RIGHTS:
 		return False
 	if doc.doctype in TEAM_SCOPED_DOCTYPES and _team_scoped(user) and not _team_can_access(doc, user):
+		return False
+	if ptype == "delete" and doc.doctype in DELETE_GOVERNED_DOCTYPES and not _may_delete(doc, user):
 		return False
 	return None
 
@@ -469,6 +501,7 @@ def setup_roles_and_permissions() -> None:
 
 	_strip_deprecated_doctype_permissions()
 	_sales_user_select_only()
+	grant_finance_export()
 	setup_job_profiles()
 	frappe.db.commit()
 
@@ -651,6 +684,54 @@ def _remove_share(share) -> None:
 		todo_doc = frappe.get_doc("ToDo", todo)
 		todo_doc.status = "Cancelled"
 		todo_doc.save(ignore_permissions=True)
+
+
+# Exporting lists is for Finance and the Agency Manager ([P3-141]). The Agency
+# Manager's manager roles already export; Finance's standard roles do not.
+FINANCE_EXPORT_CANDIDATES = (*DELETE_GOVERNED_DOCTYPES, "Sales Invoice")
+
+
+def finance_export_doctypes() -> tuple[str, ...]:
+	"""The candidates Finance's job can at least view.
+
+	Never more: query reports run their own SQL without job access, so an export
+	right on a list Finance cannot see would hand over every row of it.
+	"""
+	access = JOB_ACCESS["Vellox Finance"]
+	return tuple(
+		doctype
+		for doctype in FINANCE_EXPORT_CANDIDATES
+		if doctype not in GOVERNED_DOCTYPES or access.get(doctype, NONE) in (VIEW, EDIT)
+	)
+
+
+def grant_finance_export() -> None:
+	"""Give the Vellox Finance role read, report and export on the lists it may export.
+
+	Like _sales_user_select_only this sets up Custom DocPerm for these doctypes,
+	so later ERPNext changes to their standard permissions no longer apply
+	automatically. Finance's job access still limits what it can read. Rows on
+	other candidates (from an earlier, wider grant) are removed.
+	"""
+	from frappe.permissions import add_permission, setup_custom_perms, update_permission_property
+
+	allowed = finance_export_doctypes()
+	for doctype in FINANCE_EXPORT_CANDIDATES:
+		filters = {"parent": doctype, "role": "Vellox Finance", "permlevel": 0, "if_owner": 0}
+		if doctype not in allowed:
+			if frappe.db.exists("Custom DocPerm", filters):
+				frappe.db.delete("Custom DocPerm", filters)
+				frappe.clear_cache(doctype=doctype)
+			continue
+		row = frappe.db.get_value("Custom DocPerm", filters, ["read", "report", "export"], as_dict=True)
+		if row and row.read and row.report and row.export:
+			continue
+		setup_custom_perms(doctype)
+		if not frappe.db.exists("Custom DocPerm", filters):
+			add_permission(doctype, "Vellox Finance", 0)
+		for ptype in ("read", "report", "export"):
+			update_permission_property(doctype, "Vellox Finance", 0, ptype, 1, validate=False)
+		frappe.clear_cache(doctype=doctype)
 
 
 def _sales_user_select_only() -> None:
