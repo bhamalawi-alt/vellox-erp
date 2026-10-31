@@ -256,7 +256,8 @@ def job_access_query(user=None, doctype=None) -> str:
 		return f"`tabProject`.`name` in ({_member_projects_sql(user)})"
 	condition = f"`tab{doctype}`.`project` in ({_member_projects_sql(user)})"
 	if doctype == "Task":
-		escaped, assigned = frappe.db.escape(user), frappe.db.escape(f'%"{user}"%')
+		literal = user.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+		escaped, assigned = frappe.db.escape(user), frappe.db.escape(f'%"{literal}"%')
 		condition = (
 			f"({condition} or (ifnull(`tabTask`.`project`, '') = '' and "
 			f"(`tabTask`.`owner` = {escaped} or `tabTask`.`_assign` like {assigned})))"
@@ -293,6 +294,32 @@ def job_access_file_query(user=None, doctype=None) -> str:
 		scoped_list = ", ".join(f"'{d}'" for d in TEAM_SCOPED_DOCTYPES)
 		conditions.append(f"({attached} not in ({scoped_list}) or {' or '.join(allowed)})")
 	return " and ".join(conditions)
+
+
+def validate_todo_within_access(doc, method=None) -> None:
+	"""ToDo validate hook: only someone who can open a record may assign it.
+
+	Any user can create a ToDo, and its _assign update grants a team member
+	access to a task without a project; Frappe's assign button checks that the
+	assigner can read the record, a direct ToDo insert does not.
+	"""
+	doctype, name = doc.reference_type, doc.reference_name
+	if not doctype or not name or (doctype not in GOVERNED_DOCTYPES and doctype not in TEAM_SCOPED_DOCTYPES):
+		return
+	if not (doc.is_new() or doc.has_value_changed("allocated_to")):
+		return
+	# Assignment rules and assign_to (which checks the assigner itself) insert
+	# with ignore_permissions; a user's own ToDo insert never carries that flag.
+	if doc.flags.ignore_permissions:
+		return
+	if frappe.session.user == "Administrator" or not frappe.db.exists(doctype, name):
+		return
+	if not frappe.has_permission(doctype, "read", doc=name):
+		frappe.throw(
+			_("You cannot assign {0} {1}: you do not have access to it.").format(_(doctype), frappe.bold(name)),
+			frappe.PermissionError,
+			title=_("Assignment not allowed"),
+		)
 
 
 def remember_project_members(doc, method=None) -> None:

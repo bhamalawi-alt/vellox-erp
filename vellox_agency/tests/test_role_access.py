@@ -516,3 +516,16 @@ class TestRoleAccess(FrappeTestCase):
 		share = frappe.get_doc("DocShare", share.name)
 		share.user = member  # same rights, different person
 		self.assertRaises(frappe.PermissionError, share.save, ignore_permissions=True)
+
+	def test_team_member_cannot_assign_themselves_a_task_they_cannot_see(self):
+		member = self._job("Team Member")
+		task = frappe.get_doc({"doctype": "Task", "subject": f"_Test Access hidden {self.tag}"}).insert(
+			ignore_permissions=True
+		)
+		with self.set_user(member):
+			todo = frappe.get_doc(
+				{"doctype": "ToDo", "allocated_to": member, "reference_type": "Task", "reference_name": task.name,
+				 "description": "self-assigned"}
+			)
+			self.assertRaises(frappe.PermissionError, todo.insert)
+		self.assertEqual(self._level(member, frappe.get_doc("Task", task.name)), NONE)

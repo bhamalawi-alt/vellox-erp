@@ -52,6 +52,7 @@ scheduler_events = {
 
 # Shares and assignments never give more than the receiver's job ([P3-140]).
 doc_events["DocShare"] = {"validate": "vellox_agency.security.validate_share_within_job"}
+doc_events["ToDo"] = {"validate": "vellox_agency.security.validate_todo_within_access"}
 
 doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
