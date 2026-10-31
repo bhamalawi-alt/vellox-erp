@@ -24,6 +24,191 @@ ROLE_MATRIX: dict[str, dict] = {
 
 MANAGEMENT_ROLES = ("System Manager", "Agency Manager")
 
+# One Role Profile per job ([P3-140]). The ERPNext roles bring the base access
+# (and the many linked records a quote or invoice needs); JOB_ACCESS below then
+# limits each Vellox role to the owner-approved table.
+JOB_PROFILES: dict[str, tuple[str, ...]] = {
+	"Sales": ("Vellox Sales", "Sales User"),
+	"Project Manager": ("Vellox Project Manager", "Projects User", "Sales User"),
+	"Team Member": ("Vellox Team Member", "Projects User"),
+	"Finance": ("Vellox Finance", "Accounts User", "Sales User", "Projects User"),
+	"Operations": ("Vellox Operations", "Sales User", "Projects User"),
+	"Agency Manager": (
+		"Agency Manager",
+		"Sales Manager",
+		"Sales User",
+		"Projects Manager",
+		"Projects User",
+		"Accounts Manager",
+		"Accounts User",
+	),
+	"Agency Staff": ("Agency Staff", "Projects User"),
+}
+
+
+EDIT, VIEW, NONE = "edit", "view", "none"
+_LEVEL_RANK = {NONE: 0, VIEW: 1, EDIT: 2}
+# Rights a view-only job keeps; everything else (write, create, delete,
+# submit, cancel, amend, share, export, import) is refused.
+VIEW_RIGHTS = frozenset({"read", "select", "report", "print", "email"})
+
+# Record types whose access is capped per job. A job may never get more than
+# its ERPNext roles grant; this only takes rights away.
+GOVERNED_DOCTYPES = (
+	"Lead",
+	"Opportunity",
+	"Quotation",
+	"Customer",
+	"Contact",
+	"Item",
+	"Project",
+	"Task",
+	"Timesheet",
+	"Sales Invoice",
+	"Payment Entry",
+)
+_TEAM_ACCESS = {"Project": VIEW, "Task": EDIT, "Timesheet": EDIT}
+JOB_ACCESS: dict[str, dict[str, str]] = {
+	"Vellox Sales": {
+		"Lead": EDIT,
+		"Opportunity": EDIT,
+		"Quotation": EDIT,
+		"Customer": EDIT,
+		"Contact": EDIT,
+		"Item": VIEW,
+	},
+	"Vellox Project Manager": {
+		"Project": EDIT,
+		"Task": EDIT,
+		"Timesheet": EDIT,
+		"Customer": VIEW,
+		"Quotation": VIEW,
+		"Contact": VIEW,
+		"Item": VIEW,
+	},
+	"Vellox Team Member": dict(_TEAM_ACCESS),
+	"Agency Staff": dict(_TEAM_ACCESS),
+	"Vellox Finance": {
+		"Sales Invoice": EDIT,
+		"Payment Entry": EDIT,
+		"Customer": VIEW,
+		"Quotation": VIEW,
+		"Project": VIEW,
+		"Timesheet": VIEW,
+		"Contact": VIEW,
+		"Item": VIEW,
+	},
+	"Vellox Operations": {
+		"Quotation": EDIT,
+		"Project": EDIT,
+		"Task": EDIT,
+		"Lead": VIEW,
+		"Opportunity": VIEW,
+		"Customer": VIEW,
+		"Contact": VIEW,
+		"Timesheet": VIEW,
+		"Item": VIEW,
+	},
+	"Agency Manager": dict.fromkeys(GOVERNED_DOCTYPES, EDIT),
+}
+# Team members see only projects they are listed on (Project > Users) and
+# only their own timesheets, unless another job of theirs sees more.
+TEAM_ROLES = frozenset({"Vellox Team Member", "Agency Staff"})
+TEAM_SCOPED_DOCTYPES = ("Project", "Task", "Timesheet", "Deliverable")
+
+
+def _job_roles(user: str) -> set[str]:
+	"""The user's Vellox job roles, or an empty set when no cap applies."""
+	if user == "Administrator":
+		return set()
+	roles = set(frappe.get_roles(user))
+	if "System Manager" in roles:
+		return set()
+	return roles & set(JOB_ACCESS)
+
+
+def access_level(doctype: str, user: str | None = None) -> str | None:
+	"""Highest level any of the user's jobs allows on doctype; None when uncapped."""
+	jobs = _job_roles(user or frappe.session.user)
+	if not jobs or doctype not in GOVERNED_DOCTYPES:
+		return None
+	return max((JOB_ACCESS[job].get(doctype, NONE) for job in jobs), key=_LEVEL_RANK.get)
+
+
+def _team_scoped(user: str) -> bool:
+	jobs = _job_roles(user)
+	return bool(jobs) and jobs <= TEAM_ROLES
+
+
+def _member_projects_sql(user: str) -> str:
+	return (
+		"select `parent` from `tabProject User` "
+		f"where `parenttype` = 'Project' and `user` = {frappe.db.escape(user)}"
+	)
+
+
+def _is_project_member(user: str, project: str | None) -> bool:
+	return bool(project) and frappe.db.exists(
+		"Project User", {"parenttype": "Project", "parent": project, "user": user}
+	)
+
+
+def job_access_permission(doc, ptype=None, user=None, **kwargs) -> bool | None:
+	"""has_permission hook: refuse what the user's jobs do not allow; otherwise stay silent.
+
+	Returns None (not True) when allowing, so other apps' hooks still decide.
+	"""
+	user = user or frappe.session.user
+	level = access_level(doc.doctype, user)
+	if level == NONE:
+		return False
+	if level == VIEW and ptype and ptype not in VIEW_RIGHTS:
+		return False
+	if doc.doctype in TEAM_SCOPED_DOCTYPES and _team_scoped(user) and not _team_can_access(doc, user):
+		return False
+	return None
+
+
+def _team_can_access(doc, user: str) -> bool:
+	if doc.doctype == "Timesheet":
+		return doc.is_new() or doc.owner == user
+	if doc.doctype == "Project":
+		return _is_project_member(user, doc.name)
+	return _is_project_member(user, doc.get("project"))
+
+
+def job_access_query(user=None, doctype=None) -> str:
+	"""permission_query_conditions hook: the list-view side of job_access_permission."""
+	user = user or frappe.session.user
+	if access_level(doctype, user) == NONE:
+		return "1=0"
+	if doctype not in TEAM_SCOPED_DOCTYPES or not _team_scoped(user):
+		return ""
+	if doctype == "Timesheet":
+		return f"`tabTimesheet`.`owner` = {frappe.db.escape(user)}"
+	if doctype == "Project":
+		return f"`tabProject`.`name` in ({_member_projects_sql(user)})"
+	return f"`tab{doctype}`.`project` in ({_member_projects_sql(user)})"
+
+
+def _profile_name(job: str) -> str:
+	return job if job.startswith("Agency") else f"Vellox {job}"
+
+
+def setup_job_profiles() -> None:
+	"""Create or update one Role Profile per job; assigning it keeps a user's roles in sync."""
+	for job, roles in JOB_PROFILES.items():
+		name = _profile_name(job)
+		if frappe.db.exists("Role Profile", name):
+			profile = frappe.get_doc("Role Profile", name)
+		else:
+			profile = frappe.new_doc("Role Profile")
+			profile.role_profile = name
+		if sorted(r.role for r in profile.roles) == sorted(roles):
+			continue
+		profile.set("roles", [{"role": role} for role in roles])
+		profile.save(ignore_permissions=True)
+
 
 def apply_baseline() -> None:
 	"""after_migrate hook: reapply offer metadata + least-privilege baseline."""
@@ -65,7 +250,7 @@ def _report_lead_routing() -> None:
 		print(
 			f"Vellox: lead routing is OFF. No active user with {' or '.join(LEAD_ROSTER_ROLES)} "
 			"can see every Lead, so new website inquiries are not assigned to anyone. "
-			"Give your salespeople the Vellox Sales role and access to Leads."
+			"Set Role Profile 'Vellox Sales' on each salesperson's user."
 		)
 
 
@@ -81,6 +266,7 @@ def setup_roles_and_permissions() -> None:
 		role.save(ignore_permissions=True)
 
 	_strip_deprecated_doctype_permissions()
+	setup_job_profiles()
 	frappe.db.commit()
 
 

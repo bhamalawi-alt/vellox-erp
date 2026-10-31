@@ -95,6 +95,25 @@ has_permission = {
 	)
 }
 
+# Per-job access limits and team-member project scoping ([P3-140]). Must list
+# security.GOVERNED_DOCTYPES plus "Deliverable" (checked by test_role_access).
+JOB_ACCESS_DOCTYPES = (
+	"Lead",
+	"Opportunity",
+	"Quotation",
+	"Customer",
+	"Contact",
+	"Item",
+	"Project",
+	"Task",
+	"Timesheet",
+	"Sales Invoice",
+	"Payment Entry",
+	"Deliverable",
+)
+for _doctype in JOB_ACCESS_DOCTYPES:
+	has_permission[_doctype] = "vellox_agency.security.job_access_permission"
+
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
 # 	{
@@ -203,9 +222,11 @@ after_install = "vellox_agency.install.after_install"
 # Permissions evaluated in scripted ways
 
 permission_query_conditions = {
-	"Deliverable": "vellox_agency.security.deliverable_permission_query",
 	"Comment": "vellox_agency.security.comment_permission_query",
 }
+for _doctype in JOB_ACCESS_DOCTYPES:
+	permission_query_conditions[_doctype] = ["vellox_agency.security.job_access_query"]
+permission_query_conditions["Deliverable"].insert(0, "vellox_agency.security.deliverable_permission_query")
 
 # has_permission = {
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",
