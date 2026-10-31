@@ -61,6 +61,13 @@ LOST_REASONS = ["Price", "Delay in implementation", "Chose a competitor", "Proje
 
 ASSIGNMENT_RULE = "Vellox Intake Assignment"
 FIRST_RESPONSE_HOURS = 4
+# New leads go round-robin to active users with the first role that has anyone.
+LEAD_ROSTER_ROLES = ("Vellox Sales", "Agency Manager")
+LEAD_RULE_DESCRIPTION = (
+	"Managed by vellox_agency: new leads go round-robin to active users with the "
+	"Vellox Sales role (or Agency Manager if nobody has it) who can see every Lead. "
+	"Edits to Users or Disabled here are overwritten; change routing through those roles."
+)
 
 
 def setup_lead_assignment_and_sla() -> None:
@@ -72,16 +79,92 @@ def setup_lead_assignment_and_sla() -> None:
 				"name": ASSIGNMENT_RULE,
 				"title": ASSIGNMENT_RULE,
 				"document_type": "Lead",
-				"description": "Round-robin new website inquiries among Vellox Sales users.",
+				"description": LEAD_RULE_DESCRIPTION,
+				"rule": "Round Robin",
 				"assign_condition": 'status == "Lead"',
 				"priority": 1,
-				"users": [{"user": "Administrator"}],  # ops adds the real sales roster
 				"assignment_days": [
 					{"day": day}
 					for day in ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 				],
 			}
 		).insert(ignore_permissions=True)
+	sync_lead_assignment_users()
+
+
+def lead_assignment_roster() -> list[str]:
+	"""Active desk users who can see every Lead, from the first LEAD_ROSTER_ROLES role that has any.
+
+	Users who cannot read Lead, or whose User Permissions restrict which Leads
+	they see, are left out: Frappe shares a lead with an assignee who cannot
+	see it, so new leads should only go to people who need no share.
+	"""
+	for role in LEAD_ROSTER_ROLES:
+		holders = frappe.get_all("Has Role", filters={"role": role, "parenttype": "User"}, pluck="parent")
+		holders = [user for user in holders if user not in ("Administrator", "Guest")]
+		if not holders:
+			continue
+		users = frappe.get_all(
+			"User",
+			filters={"name": ["in", holders], "enabled": 1, "user_type": "System User"},
+			pluck="name",
+			order_by="name asc",
+		)
+		users = [
+			user
+			for user in users
+			if frappe.has_permission("Lead", "read", user=user) and not _restricted_on_lead(user)
+		]
+		if users:
+			return users
+	return []
+
+
+def _restricted_on_lead(user: str) -> bool:
+	"""True if the user's User Permissions limit which Leads they can see."""
+	from frappe.permissions import get_user_permissions
+
+	restricting = set(get_user_permissions(user))
+	if not restricting:
+		return False
+	lead_links = {"Lead"} | {df.options for df in frappe.get_meta("Lead").get_link_fields()}
+	return bool(restricting & lead_links)
+
+
+def sync_lead_assignment_users(doc=None, method=None) -> None:
+	"""Keep the intake rule's users equal to the roster; disable it when nobody qualifies.
+
+	Runs on migrate, hourly, and as a hook on User, User Permission, Custom
+	DocPerm and Role saves. Role and user changes apply right away; permission
+	edits made in Role Permission Manager skip doc hooks, so those apply within
+	the hour. An enabled rule with no users would crash Frappe's round-robin.
+	"""
+	if not frappe.db.exists("Assignment Rule", ASSIGNMENT_RULE):
+		return
+	roster = lead_assignment_roster()
+	rule = frappe.get_doc("Assignment Rule", ASSIGNMENT_RULE)
+	disabled = 0 if roster else 1
+	# last_user is where round-robin resumes; a removed or deleted user there
+	# would fail the rule's link validation on save.
+	last_user = rule.last_user if rule.last_user in roster else None
+	if (
+		[u.user for u in rule.users] == roster
+		and rule.disabled == disabled
+		and rule.last_user == last_user
+		and rule.description == LEAD_RULE_DESCRIPTION
+	):
+		return
+	rule.set("users", [{"user": user} for user in roster])
+	rule.disabled = disabled
+	rule.last_user = last_user
+	rule.description = LEAD_RULE_DESCRIPTION
+	rule.save(ignore_permissions=True)
+	if not roster:
+		frappe.logger("vellox_lead_routing", allow_site=True).warning(
+			"%s disabled: no active user with any of %s can see every Lead",
+			ASSIGNMENT_RULE,
+			", ".join(LEAD_ROSTER_ROLES),
+		)
 
 
 def _ensure_sales_stage_prospecting() -> None:
