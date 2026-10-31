@@ -16,15 +16,26 @@ DAILY_GUARD_KEY = "vellox_daily"
 
 
 def first_run_today(job: str) -> bool:
-	"""True the first time `job` asks today, so a re-run (a retried or manually
-	triggered job) does not send the same emails twice."""
-	cache = frappe.cache()
-	key = cache.make_key(f"{DAILY_GUARD_KEY}:{job}:{nowdate()}")
-	return bool(cache.set(key, 1, ex=2 * 24 * 3600, nx=True))
+	"""True the first time `job` asks today, so a manually re-run job does not
+	send the same emails twice.
+
+	The "done today" mark is a database row written in the job's own
+	transaction: if the job fails, the scheduler's rollback removes the mark
+	with the queued emails, so a re-run still sends. It also survives
+	clear-cache and migrate, which a Redis key would not.
+	"""
+	key = f"{DAILY_GUARD_KEY}:{job}"
+	today = nowdate()
+	# Read the row itself: frappe.db.get_default is cached, and a cached value
+	# could outlive a rolled-back write.
+	if frappe.db.get_value("DefaultValue", {"parent": "__default", "defkey": key}, "defvalue") == today:
+		return False
+	frappe.db.set_default(key, today)
+	return True
 
 
 def reset_daily_guards() -> None:
-	frappe.cache().delete_keys(DAILY_GUARD_KEY)
+	frappe.db.delete("DefaultValue", {"parent": "__default", "defkey": ["like", f"{DAILY_GUARD_KEY}:%"]})
 
 
 def _stale_opportunities_by_owner() -> dict[str, list[dict]]:
@@ -38,10 +49,12 @@ def _stale_opportunities_by_owner() -> dict[str, list[dict]]:
 		order_by="modified asc",
 	)
 	enabled = set(frappe.get_all("User", filters={"enabled": 1, "user_type": "System User"}, pluck="name"))
+	enabled.discard("Administrator")
 	by_owner = defaultdict(list)
 	for row in rows:
-		owner = row.opportunity_owner or row.owner
-		if owner in enabled and owner != "Administrator":
+		# A departed owner's deals go to whoever created them rather than nobody.
+		owner = next((u for u in (row.opportunity_owner, row.owner) if u in enabled), None)
+		if owner:
 			by_owner[owner].append(row)
 	return by_owner
 

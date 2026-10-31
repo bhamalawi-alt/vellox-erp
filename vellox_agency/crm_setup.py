@@ -131,6 +131,19 @@ def _restricted_on_lead(user: str) -> bool:
 	return bool(restricting & lead_links)
 
 
+def _forget_cached_lead_rules() -> None:
+	"""Drop Frappe's cached list of enabled Lead assignment rules.
+
+	Frappe trusts that list without re-checking `disabled`, so a stale entry for
+	a rule we emptied makes every Lead insert (website inquiries too) fail with
+	IndexError in round-robin. Clearing it on every sync heals a stale entry
+	within the hour.
+	"""
+	from frappe.cache_manager import clear_doctype_map
+
+	clear_doctype_map("Assignment Rule", "Lead")
+
+
 def sync_lead_assignment_users(doc=None, method=None) -> None:
 	"""Keep the intake rule's users equal to the roster; disable it when nobody qualifies.
 
@@ -141,6 +154,7 @@ def sync_lead_assignment_users(doc=None, method=None) -> None:
 	"""
 	if not frappe.db.exists("Assignment Rule", ASSIGNMENT_RULE):
 		return
+	_forget_cached_lead_rules()
 	roster = lead_assignment_roster()
 	rule = frappe.get_doc("Assignment Rule", ASSIGNMENT_RULE)
 	disabled = 0 if roster else 1
@@ -159,6 +173,10 @@ def sync_lead_assignment_users(doc=None, method=None) -> None:
 	rule.last_user = last_user
 	rule.description = LEAD_RULE_DESCRIPTION
 	rule.save(ignore_permissions=True)
+	# The rule clears the list only during save; a Lead insert in another
+	# request before this commits, or a rollback, would re-cache the old list.
+	frappe.db.after_commit.add(_forget_cached_lead_rules)
+	frappe.db.after_rollback.add(_forget_cached_lead_rules)
 	if not roster:
 		frappe.logger("vellox_lead_routing", allow_site=True).warning(
 			"%s disabled: no active user with any of %s can see every Lead",

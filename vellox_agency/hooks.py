@@ -13,9 +13,11 @@ required_apps = ["erpnext"]
 before_migrate = "vellox_agency.compatibility.validate_runtime_compatibility"
 
 # Vellox settings (sales stages, lost reasons, the lead assignment rule,
-# notifications, roles) are created by apply_baseline, not `fixtures`: fixtures
-# re-import on every migrate and would overwrite an admin's edits, while the
-# setup code creates what is missing and leaves edited records alone ([P3-100]).
+# notifications, roles) are kept by apply_baseline, not `fixtures` ([P3-100]).
+# Fixtures re-import whole records on every migrate. The setup code instead
+# creates what is missing and resets only the values it owns (stage
+# probabilities, role desk access, the rule's users); notifications and other
+# records an admin may edit are created once and then left alone.
 after_migrate = "vellox_agency.security.apply_baseline"
 
 doctype_js = {"Quotation": "public/js/quotation_offer_builder.js"}

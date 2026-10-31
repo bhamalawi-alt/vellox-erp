@@ -166,3 +166,39 @@ class TestLeadRouting(FrappeTestCase):
 
 		setup_lead_assignment_and_sla()
 		self.assertEqual([u.user for u in _rule().users], [seller])
+
+
+class TestStaleRuleCache(FrappeTestCase):
+	"""Frappe keeps a cached list of enabled rules per doctype and does not re-check
+	`disabled`; a stale entry for an empty rule makes every Lead insert crash."""
+
+	def test_sync_clears_a_stale_cached_rule_list(self):
+		from frappe.cache_manager import get_doctype_map
+
+		from vellox_agency.crm_setup import (
+			ASSIGNMENT_RULE,
+			setup_lead_assignment_and_sla,
+			sync_lead_assignment_users,
+		)
+
+		setup_lead_assignment_and_sla()
+		rule = frappe.get_doc("Assignment Rule", ASSIGNMENT_RULE)
+		rule.disabled = 0
+		rule.set("users", [{"user": "Administrator"}])
+		rule.save(ignore_permissions=True)
+		get_doctype_map("Assignment Rule", "Lead", filters={"document_type": "Lead", "disabled": 0}, order_by="priority desc")
+		# What a rolled-back or racing save leaves: the database says disabled and
+		# empty, the cached list still says enabled.
+		frappe.db.set_value("Assignment Rule", ASSIGNMENT_RULE, "disabled", 1)
+		frappe.db.delete("Assignment Rule User", {"parent": ASSIGNMENT_RULE})
+		frappe.clear_document_cache("Assignment Rule", ASSIGNMENT_RULE)
+
+		def insert_lead():
+			return frappe.get_doc(
+				{"doctype": "Lead", "lead_name": "Stale rule", "email_id": f"stale-{frappe.generate_hash(length=6)}@example.com"}
+			).insert(ignore_permissions=True)
+
+		with self.assertRaises(IndexError):  # the crash this guards against
+			insert_lead()
+		sync_lead_assignment_users()
+		self.assertTrue(insert_lead().name)
