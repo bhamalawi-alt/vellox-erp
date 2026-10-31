@@ -45,11 +45,15 @@ def validate_change_request(doc, method=None) -> None:
 		return
 	# Notifications can only address fields on the record itself ([P3-99]).
 	doc.team_emails = project_team_emails(doc.project)
-	old_status = None
-	if not doc.is_new():
-		old_status = frappe.db.get_value("Vellox Change Request", doc.name, "status")
+	# A blank status is Draft, and a new request counts as moving from Draft, so
+	# neither can skip the checks below ([P3-146]).
+	doc.status = doc.status or "Draft"
+	saved = None if doc.is_new() else frappe.db.get_value("Vellox Change Request", doc.name, ["status", "approved_by"], as_dict=True)
+	old_status = (saved and saved.status) or "Draft"
+	# approved_by changes only on the save that approves (set below).
+	doc.approved_by = saved.approved_by if saved else None
 
-	if old_status and old_status != doc.status:
+	if old_status != doc.status:
 		allowed = CR_LEGAL_TRANSITIONS.get(old_status, set())
 		if doc.status not in allowed:
 			frappe.throw(
@@ -58,11 +62,14 @@ def validate_change_request(doc, method=None) -> None:
 			)
 
 		if doc.status == "Approved":
-			required = "Agency Manager" if flt_(doc.price_impact) else "Vellox Project Manager"
-			needed = {"System Manager", required}
-			if not (needed & _cr_roles()):
+			# Delivery plan section 8: a Project Manager approves when the price is
+			# unchanged; the Agency Manager approves any request.
+			approvers = ["Agency Manager"] if flt_(doc.price_impact) else ["Vellox Project Manager", "Agency Manager"]
+			if not ({"System Manager", *approvers} & _cr_roles()):
 				frappe.throw(
-					_("Only {0} can approve this change request.").format(frappe.bold(required)),
+					_("Only {0} can approve this change request.").format(
+						_(" or ").join(frappe.bold(role) for role in approvers)
+					),
 					frappe.PermissionError,
 				)
 			doc.approved_by = frappe.session.user
@@ -79,9 +86,14 @@ def validate_change_request(doc, method=None) -> None:
 
 
 def shift_schedule_on_approval(doc, method=None) -> None:
+	"""on_update: move the project end date once, on the save that approves the request.
+
+	Keyed on the status change itself, not on approved_by, which a client can send.
+	"""
 	if doc.doctype != "Vellox Change Request" or doc.status != "Approved":
 		return
-	if doc.approved_by:  # already stamped earlier — apply once
+	before = doc.get_doc_before_save()
+	if not before or before.status == "Approved":
 		return
 	days = int(doc.schedule_impact_days or 0)
 	if days:

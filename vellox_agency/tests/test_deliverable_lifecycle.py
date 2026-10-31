@@ -44,9 +44,12 @@ class TestDeliverableLifecycle(FrappeTestCase):
     def test_happy_path_draft_to_approved(self):
         doc = _deliverable().insert(ignore_permissions=True)
         self.assertEqual(doc.status, "Draft")
+        # Each step is saved, as the form does: validate checks every move ([P3-146]).
         transition(doc, "submit_for_review")
+        doc.save()
         self.assertEqual(doc.status, "Internal Review")
         transition(doc, "internal_approve")
+        doc.save()
         self.assertEqual(doc.status, "Client Review")
         doc.append("review_rounds", {
             "reviewer": "Administrator",

@@ -83,7 +83,7 @@ doc_events["Project"] = {
 
 doc_events["Vellox Change Request"] = {
 	"validate": "vellox_agency.change_control.validate_change_request",
-	"before_validate": "vellox_agency.change_control.shift_schedule_on_approval",
+	"on_update": "vellox_agency.change_control.shift_schedule_on_approval",
 }
 
 doc_events["Deliverable"] = {

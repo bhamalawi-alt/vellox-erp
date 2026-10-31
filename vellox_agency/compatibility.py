@@ -14,7 +14,7 @@ from packaging.version import Version
 FRAPPE_SUPPORTED = ">=15.118.0,<16"
 ERPNEXT_SUPPORTED = ">=15.119.1,<16"
 
-TESTED_VERSIONS = {"frappe": "15.118.0", "erpnext": "15.119.3"}
+TESTED_VERSIONS = {"frappe": "15.125.0", "erpnext": "15.124.3"}
 
 _installed_versions: dict[str, str] = {}
 
