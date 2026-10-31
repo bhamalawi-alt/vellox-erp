@@ -112,6 +112,9 @@ def _enforce_status_move(doc):
     """Allow only the moves transition() allows, whoever saves the deliverable."""
     before = None if doc.is_new() else doc.get_doc_before_save()
     new = doc.status or "Draft"
+    # Who approved and when change only on the save that approves.
+    doc.accepted_by = before.accepted_by if before else None
+    doc.accepted_on = before.accepted_on if before else None
     if not before:
         if new != "Draft":
             frappe.throw(_("A new deliverable starts as a Draft."), frappe.ValidationError)
@@ -132,6 +135,8 @@ def _enforce_status_move(doc):
               "can raise the allowance for further review rounds.").format(doc.revision_allowance),
             frappe.ValidationError,
         )
+    if old == "Client Review" and new == "Changes Requested":
+        _require_latest_client_round(doc, "Changes Requested")
     if new == "Approved":
         _require_approved_client_round(doc)
         # Always the real approver and time: these fields are read-only on the
@@ -189,6 +194,17 @@ def _is_revision_exhausted(doc):
     rounds_used = len(doc.review_rounds or [])
     allowance = doc.revision_allowance or 0
     return rounds_used > allowance
+
+
+def _require_latest_client_round(doc, outcome):
+    """The client's answer must be on record before work leaves Client Review."""
+    rounds = doc.review_rounds or []
+    latest = rounds[-1] if rounds else None
+    if not latest or latest.audience != "Client" or latest.outcome != outcome:
+        frappe.throw(
+            _("Record the client review round (outcome '{0}') first.").format(outcome),
+            frappe.ValidationError,
+        )
 
 
 def _require_approved_client_round(doc):

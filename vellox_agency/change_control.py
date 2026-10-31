@@ -48,7 +48,10 @@ def validate_change_request(doc, method=None) -> None:
 	# A blank status is Draft, and a new request counts as moving from Draft, so
 	# neither can skip the checks below ([P3-146]).
 	doc.status = doc.status or "Draft"
-	old_status = "Draft" if doc.is_new() else (frappe.db.get_value("Vellox Change Request", doc.name, "status") or "Draft")
+	saved = None if doc.is_new() else frappe.db.get_value("Vellox Change Request", doc.name, ["status", "approved_by"], as_dict=True)
+	old_status = (saved and saved.status) or "Draft"
+	# approved_by changes only on the save that approves (set below).
+	doc.approved_by = saved.approved_by if saved else None
 
 	if old_status != doc.status:
 		allowed = CR_LEGAL_TRANSITIONS.get(old_status, set())

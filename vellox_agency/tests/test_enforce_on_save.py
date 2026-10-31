@@ -324,3 +324,48 @@ class TestChangeRequestIntegrity(_EnforceCase):
 		cr.save(ignore_permissions=True)
 		self.assertEqual(self._end(), getdate(add_days(start, 3)))
 		self.assertEqual(frappe.db.get_value("Vellox Change Request", cr.name, "approved_by"), "Administrator")
+
+
+class TestApprovalRecordIsKept(_EnforceCase):
+	def test_who_approved_a_deliverable_cannot_be_changed_later(self):
+		doc = self._deliverable()
+		for status in ("Internal Review", "Client Review"):
+			self._set_status(doc, status)
+		self._round(doc, "Client", "Approved")
+		self._set_status(doc, "Approved")
+		before = frappe.db.get_value("Deliverable", doc.name, ["accepted_by", "accepted_on"], as_dict=True)
+		with self.set_user(TEAM):
+			doc.reload()
+			doc.accepted_by = "Guest"
+			doc.accepted_on = "2020-01-01 00:00:00"
+			doc.save(ignore_permissions=True)
+		after = frappe.db.get_value("Deliverable", doc.name, ["accepted_by", "accepted_on"], as_dict=True)
+		self.assertEqual(after, before)
+
+	def test_sending_client_work_back_needs_the_clients_answer(self):
+		doc = self._deliverable()
+		for status in ("Internal Review", "Client Review"):
+			self._set_status(doc, status)
+		with self.assertRaisesRegex(frappe.ValidationError, "client review round"):
+			self._set_status(doc, "Changes Requested")
+		self._round(doc, "Client", "Changes Requested")
+		self._set_status(doc, "Changes Requested")
+
+	def test_who_approved_a_change_request_cannot_be_changed_later(self):
+		cr = self._cr(status="Draft").insert(ignore_permissions=True)
+		for status in ("Under Review", "Approved"):
+			cr.status = status
+			cr.save(ignore_permissions=True)
+		with self.set_user(TEAM):
+			cr.reload()
+			cr.approved_by = "spoof"
+			cr.save(ignore_permissions=True)
+		self.assertEqual(frappe.db.get_value("Vellox Change Request", cr.name, "approved_by"), "Administrator")
+
+	def test_old_blank_statuses_become_draft(self):
+		from vellox_agency.patches import change_request_blank_status
+
+		cr = self._cr(status="Draft").insert(ignore_permissions=True)
+		frappe.db.set_value("Vellox Change Request", cr.name, "status", "", update_modified=False)
+		change_request_blank_status.execute()
+		self.assertEqual(frappe.db.get_value("Vellox Change Request", cr.name, "status"), "Draft")
