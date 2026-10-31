@@ -75,6 +75,8 @@ class TestDeliveryNotifications(FrappeTestCase):
 				{"doctype": "Project", "project_name": "_Test Notify Project", "company": "_Test Company"}
 			).insert(ignore_permissions=True)
 		)
+		# Client-review alerts go to the project's manager ([P3-99], owner decision).
+		cls.project.db_set("custom_vellox_project_manager", MANAGER)
 
 	def _deliverable(self, **kw):
 		with self.set_user(OWNER):
@@ -106,13 +108,13 @@ class TestDeliveryNotifications(FrappeTestCase):
 		)
 		doc.save(ignore_permissions=True)
 
-	def test_client_review_emails_the_owner(self):
+	def test_client_review_emails_the_project_manager(self):
 		doc = self._move(self._deliverable(), "submit_for_review", "internal_approve")
 		queued = _queued(doc)
 		self.assertEqual(len(queued), 1, queued)
 		message, recipients = queued[0]
 		self.assertIn("Deliverable sent to client review", message)
-		self.assertEqual(recipients, {OWNER})
+		self.assertEqual(recipients, {MANAGER})
 
 	def test_resaving_without_status_change_sends_nothing_new(self):
 		doc = self._move(self._deliverable(), "submit_for_review", "internal_approve")
@@ -145,7 +147,7 @@ class TestDeliveryNotifications(FrappeTestCase):
 		self.assertEqual(len(exhausted), 1, _queued(doc))
 		self.assertIn(MANAGER, exhausted[0])
 
-	def test_change_request_decision_emails_the_owner_once(self):
+	def test_change_request_decision_emails_the_raiser_and_team_once(self):
 		with self.set_user(OWNER):
 			cr = frappe.get_doc(
 				{"doctype": "Vellox Change Request", "title": "Extra page", "project": self.project.name}
@@ -158,7 +160,8 @@ class TestDeliveryNotifications(FrappeTestCase):
 		cr.save(ignore_permissions=True)
 		decisions = [r for m, r in _queued(cr) if "Change Request" in m and "Approved" in m]
 		self.assertEqual(len(decisions), 1, _queued(cr))
-		self.assertEqual(decisions[0], {OWNER})
+		# The raiser and the project team, here its manager ([P3-99]).
+		self.assertEqual(decisions[0], {OWNER, MANAGER})
 
 	def test_setup_keeps_admin_edits_to_repaired_notifications(self):
 		name = NOTIFICATION_DEFINITIONS[0]["name"]

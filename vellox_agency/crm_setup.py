@@ -314,10 +314,88 @@ PROJECT_HEALTH_FIELD = {
 }
 
 
+PROJECT_PHASES = ("Discovery", "Design", "Build", "Launch", "Post-Launch")
+
+# Delivery plan section 2 ([P3-99]).
+PROJECT_DELIVERY_FIELDS = [
+	{
+		"fieldname": "custom_vellox_phase",
+		"label": "Phase",
+		"fieldtype": "Select",
+		"options": "\n" + "\n".join(PROJECT_PHASES),
+		"description": "Set automatically from the project's tasks.",
+		"insert_after": "custom_vellox_health",
+	},
+	{
+		"fieldname": "custom_vellox_project_manager",
+		"label": "Project Manager",
+		"fieldtype": "Link",
+		"options": "User",
+		"insert_after": "custom_vellox_phase",
+	},
+	{
+		"fieldname": "custom_vellox_risks",
+		"label": "Risks",
+		"fieldtype": "Small Text",
+		"insert_after": "custom_vellox_project_manager",
+	},
+]
+
+
 def setup_project_health_field() -> None:
 	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+	from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 
-	create_custom_fields({"Project": [PROJECT_HEALTH_FIELD]}, update=True)
+	create_custom_fields({"Project": [PROJECT_HEALTH_FIELD, *PROJECT_DELIVERY_FIELDS]}, update=True)
+	# Phase and manager changes are kept in the Project's history. Created once, so
+	# an admin who turns history off is not overruled on the next migrate.
+	if not frappe.db.exists("Property Setter", {"doc_type": "Project", "property": "track_changes"}):
+		make_property_setter("Project", None, "track_changes", 1, "Check", for_doctype=True, validate_fields_for_doctype=False)
+
+
+def stamp_project_manager(doc, method=None) -> None:
+	"""Project before_insert: whoever creates a project manages it unless one is chosen."""
+	if not doc.get("custom_vellox_project_manager") and frappe.session.user != "Guest":
+		doc.custom_vellox_project_manager = frappe.session.user
+
+
+SALES_NOTIFICATIONS = [
+	{
+		"name": "Vellox Inquiry Acknowledgement",
+		"subject": "Thank you for contacting Vellox Studio",
+		"document_type": "Lead",
+		"event": "New",
+		# Only website inquiries carry the inquiry text; staff-typed leads get nothing.
+		"condition": "doc.custom_vellox_inquiry and doc.email_id",
+		"channel": "Email",
+		"recipients": [{"receiver_by_document_field": "email_id"}],
+		# Fixed wording only: anyone can post an inquiry for any address, so echoing
+		# the typed name would let them send their own text from our mail server.
+		"message": (
+			"<p>Hello,</p>"
+			"<p>Thank you for getting in touch. We have received your message and one of our team "
+			"will reply within one working day.</p><p>Vellox Studio</p>"
+		),
+	},
+	{
+		"name": "Vellox Quotation Approved",
+		"subject": "Quotation {{ doc.name }} approved",
+		"document_type": "Quotation",
+		"event": "Value Change",
+		"value_changed": "custom_vellox_approval_status",
+		# Auto-approved quotes needed nobody's decision, so there is nothing to tell.
+		"condition": "doc.custom_vellox_approval_status == 'Approved' and doc.custom_vellox_approved_by != 'auto'",
+		"channel": "Email",
+		"recipients": [{"receiver_by_document_field": "owner"}],
+		"message": "Quotation {{ doc.name }} for {{ doc.customer_name or doc.party_name }} was approved by {{ doc.custom_vellox_approved_by }}.",
+	},
+]
+
+
+def setup_sales_notifications() -> None:
+	from vellox_agency.delivery_setup import setup_notification_fixtures
+
+	setup_notification_fixtures(SALES_NOTIFICATIONS)
 
 
 HEALTH_MANAGER_ROLES = ("System Manager", "Agency Manager", "Vellox Project Manager")

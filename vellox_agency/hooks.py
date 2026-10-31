@@ -48,11 +48,17 @@ scheduler_events = {
 		"vellox_agency.crm_setup.sync_lead_assignment_users",
 		"vellox_agency.security.revoke_shares_beyond_jobs",
 	],
+	"daily": ["vellox_agency.lead_followup.send_late_reply_digest"],
 }
 
 # Shares and assignments never give more than the receiver's job ([P3-140]).
 doc_events["DocShare"] = {"validate": "vellox_agency.security.validate_share_within_job"}
 doc_events["ToDo"] = {"validate": "vellox_agency.security.validate_todo_within_access"}
+
+doc_events["Task"] = {
+	"on_update": "vellox_agency.project_phase.sync_project_phase",
+	"after_delete": "vellox_agency.project_phase.sync_project_phase",
+}
 
 doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
@@ -60,6 +66,7 @@ doc_events["Lead"] = {
 
 doc_events["Project"] = {
 	# Runs before ERPNext's validate, which shares the project with new members.
+	"before_insert": "vellox_agency.crm_setup.stamp_project_manager",
 	"before_validate": "vellox_agency.security.remember_project_members",
 	"validate": "vellox_agency.change_control.gate_health_transition",
 	"on_update": "vellox_agency.security.forget_project_members",

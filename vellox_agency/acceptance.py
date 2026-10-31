@@ -119,12 +119,23 @@ def _create_step_tasks(project, steps: list[dict], prefix: str = "") -> list[str
 		task.is_milestone = cint(step.get("is_milestone"))
 		if step.get("default_role"):
 			task.custom_vellox_default_role = step["default_role"]
+		if step.get("phase"):
+			task.custom_vellox_phase = step["phase"]
 		dep = cint(step.get("depends_on_step"))
 		if dep and dep in step_to_task:
 			task.append("depends_on", {"task": step_to_task[dep]})
 		task.insert(ignore_permissions=True)
 		step_to_task[index] = task.name
 	return list(step_to_task.values())
+
+
+def _unique_project_name(base: str) -> str:
+	"""Two projects from one template in the same second would share a name."""
+	name, n = base, 1
+	while frappe.db.exists("Project", {"project_name": name}):
+		n += 1
+		name = f"{base} ({n})"
+	return name
 
 
 @frappe.whitelist()
@@ -139,7 +150,7 @@ def create_project_from_template(template_name: str, customer: str | None = None
 		frappe.throw(_("Practice steps are not installed. Run migrate."))
 
 	project = frappe.new_doc("Project")
-	project.project_name = f"{template_name} — {frappe.utils.now_datetime().strftime('%Y%m%d-%H%M%S')}"
+	project.project_name = _unique_project_name(f"{template_name} — {frappe.utils.now_datetime().strftime('%Y%m%d-%H%M%S')}")
 	company = frappe.defaults.get_global_default("company")
 	if not company and frappe.db.exists("Company", "_Test Company"):
 		company = "_Test Company"

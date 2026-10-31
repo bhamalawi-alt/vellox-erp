@@ -21,15 +21,6 @@ def require_lost_reason(doc, method=None) -> None:
 			)
 
 
-def require_lost_reason(doc, method=None) -> None:
-	if doc.doctype == "Opportunity" and doc.status == "Lost":
-		if not doc.get("lost_reasons"):
-			frappe.throw(
-				_("A lost Opportunity requires at least one lost reason."),
-				frappe.ValidationError,
-			)
-
-
 def _allowed_customers(user: str | None) -> list[str]:
 	"""Customer names explicitly permitted via User Permission (may be empty
 	meaning unrestricted — mirrors standard ERPNext semantics)."""

@@ -78,6 +78,9 @@ def validate_deliverable(doc, method=None):
     # reaches the "Revision Allowance Exhausted" condition as a per-save flag.
     # Set here, not in transition(), because users also change status on the form.
     doc.flags.revision_exhausted = doc.status == "Changes Requested" and _is_revision_exhausted(doc)
+    # Notifications can only address fields on the record itself ([P3-99]).
+    # Falls back to the creator, who received this alert before [P3-99].
+    doc.project_manager = frappe.db.get_value("Project", doc.project, "custom_vellox_project_manager") or doc.owner
 
 
 def _enforce_version_immutability(doc):

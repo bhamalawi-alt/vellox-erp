@@ -11,7 +11,8 @@
     "sb_acceptance", "accepted_on", "accepted_by",
     "sb_content", "client_visible",
     "sb_versions", "versions",
-    "sb_rounds", "review_rounds"
+    "sb_rounds", "review_rounds",
+    "project_manager"
   ],
   "fields": [
     {"fieldname": "project", "fieldtype": "Link", "options": "Project", "label": "Project", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
@@ -31,11 +32,12 @@
     {"fieldname": "sb_versions", "fieldtype": "Section Break", "label": "Versions"},
     {"fieldname": "versions", "fieldtype": "Table", "label": "Versions", "options": "Vellox Deliverable Version"},
     {"fieldname": "sb_rounds", "fieldtype": "Section Break", "label": "Review Rounds"},
-    {"fieldname": "review_rounds", "fieldtype": "Table", "label": "Review Rounds", "options": "Vellox Review Round"}
+    {"fieldname": "review_rounds", "fieldtype": "Table", "label": "Review Rounds", "options": "Vellox Review Round"},
+    {"fieldname": "project_manager", "fieldtype": "Link", "label": "Project Manager", "options": "User", "read_only": 1, "hidden": 1, "description": "Copied from the project for the client-review alert."}
   ],
   "index_web_pages_for_search": 1,
   "links": [],
-  "modified": "2026-08-26 00:00:00.000000",
+  "modified": "2026-10-31 12:00:00.000000",
   "modified_by": "Administrator",
   "module": "Vellox Agency Projects",
   "name": "Deliverable",

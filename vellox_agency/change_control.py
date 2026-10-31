@@ -29,9 +29,22 @@ def _cr_roles():
 	return set(frappe.get_roles())
 
 
+def project_team_emails(project: str) -> str:
+	"""Emails of the project's manager and members, for the Change Request decision alert."""
+	users = set(frappe.get_all("Project User", filters={"parent": project, "parenttype": "Project"}, pluck="user"))
+	users.add(frappe.db.get_value("Project", project, "custom_vellox_project_manager"))
+	users.discard(None)
+	if not users:
+		return ""
+	emails = frappe.get_all("User", filters={"name": ["in", list(users)], "enabled": 1}, pluck="email")
+	return "\n".join(sorted(e for e in emails if e))
+
+
 def validate_change_request(doc, method=None) -> None:
 	if doc.doctype != "Vellox Change Request":
 		return
+	# Notifications can only address fields on the record itself ([P3-99]).
+	doc.team_emails = project_team_emails(doc.project)
 	old_status = None
 	if not doc.is_new():
 		old_status = frappe.db.get_value("Vellox Change Request", doc.name, "status")
