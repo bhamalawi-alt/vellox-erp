@@ -5,7 +5,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from vellox_agency.deprecations import DEPRECATION_TARGETS, LEGACY_REPORTS
 
-WORKSPACE_PATH = ("vellox_agency_reports", "workspace", "vellox_agency", "vellox_agency.json")
+WORKSPACE_PATH = ("vellox_agency_projects", "workspace", "vellox_agency", "vellox_agency.json")
 
 # First-generation prototype modules: empty controllers, never built out.
 PROTOTYPE_DOCTYPES = {"Agency Campaign", "Production Job", "Capacity Plan", "Skill"}
@@ -73,13 +73,29 @@ class TestVelloxAgencyWorkspace(FrappeTestCase):
 			with self.subTest(report=report):
 				self.assertEqual(frappe.db.get_value("Report", report, "disabled"), 1)
 
+	def test_agency_users_can_open_the_menu(self):
+		from frappe.desk.desktop import get_desktop_page, get_workspace_sidebar_items
+
+		for role in ("Agency Staff", "Agency Manager"):
+			user = f"workspace-{role.lower().replace(' ', '-')}@example.com"
+			if not frappe.db.exists("User", user):
+				doc = frappe.get_doc({"doctype": "User", "email": user, "first_name": "Menu", "send_welcome_email": 0})
+				doc.insert(ignore_permissions=True)
+				doc.add_roles(role)
+			frappe.clear_cache(user=user)
+			with self.subTest(role=role), self.set_user(user):
+				pages = [p["name"] for p in get_workspace_sidebar_items()["pages"]]
+				self.assertIn("Vellox Agency", pages)
+				page = get_desktop_page(json.dumps({"name": "Vellox Agency", "title": "Vellox Agency"}))
+				shown = [link["label"] for card in page["cards"]["items"] for link in card["links"]]
+				self.assertIn("Deliverables", shown)
+
 	def test_layout_blocks_match_shortcuts_and_cards(self):
 		workspace = _workspace()
 		shortcuts = {s["label"] for s in workspace["shortcuts"]}
 		cards = {link["label"] for link in workspace["links"] if link.get("type") == "Card Break"}
-		for block in json.loads(workspace["content"]):
-			data = block.get("data", {})
-			if block["type"] == "shortcut":
-				self.assertIn(data["shortcut_name"], shortcuts)
-			elif block["type"] == "card":
-				self.assertIn(data["card_name"], cards)
+		blocks = json.loads(workspace["content"])
+		placed_shortcuts = {b["data"]["shortcut_name"] for b in blocks if b["type"] == "shortcut"}
+		placed_cards = {b["data"]["card_name"] for b in blocks if b["type"] == "card"}
+		self.assertEqual(placed_shortcuts, shortcuts)
+		self.assertEqual(placed_cards, cards)

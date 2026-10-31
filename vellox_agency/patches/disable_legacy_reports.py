@@ -1,6 +1,14 @@
 import frappe
 
-from vellox_agency.deprecations import LEGACY_REPORTS
+# Inlined so this patch keeps working after the reports and any shared
+# constant are removed ([P7-111]).
+LEGACY_REPORTS = (
+	"Agency KPI",
+	"Agency Utilization",
+	"Budget vs Actual",
+	"Invoice Register",
+	"Production Pipeline",
+)
 
 
 def execute():

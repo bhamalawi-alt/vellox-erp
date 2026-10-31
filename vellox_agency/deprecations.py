@@ -30,7 +30,7 @@ LEGACY_REPORTS = (
 	"Production Pipeline",
 )
 
-_EXEMPT_FLAGS =("in_install", "in_migrate", "in_patch", "in_test", "in_uninstall")
+_EXEMPT_FLAGS = ("in_install", "in_migrate", "in_patch", "in_test", "in_uninstall")
 
 
 def _exempt() -> bool:
