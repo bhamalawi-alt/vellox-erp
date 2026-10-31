@@ -50,9 +50,14 @@ class TestLeadRouting(FrappeTestCase):
 		self.fallback = f"_Test Lead Fallback {self.tag}"
 		_role(self.seller)
 		_role(self.fallback)
-		patcher = patch("vellox_agency.crm_setup.LEAD_ROSTER_ROLES", (self.seller, self.fallback))
-		patcher.start()
-		self.addCleanup(patcher.stop)
+		for patcher in (
+			patch("vellox_agency.crm_setup.LEAD_ROSTER_ROLES", (self.seller, self.fallback)),
+			# Assignment emails go through the email queue, which commits; muting
+			# them keeps each test inside its rolled-back transaction.
+			patch("frappe.desk.form.assign_to.notify_assignment"),
+		):
+			patcher.start()
+			self.addCleanup(patcher.stop)
 
 	def _email(self, name):
 		return f"{name}-{self.tag}@example.com"
@@ -100,3 +105,51 @@ class TestLeadRouting(FrappeTestCase):
 		self.assertEqual([u.user for u in rule.users], [])
 		self.assertTrue(rule.disabled)
 		self.assertNotIn("Administrator", [u.user for u in rule.users])
+
+	def test_users_restricted_by_user_permissions_are_left_out(self):
+		restricted = _user(self._email("routing-restricted"), self.seller, LEAD_READER)
+		frappe.get_doc(
+			{"doctype": "User Permission", "user": restricted, "allow": "Company", "for_value": "_Test Company"}
+		).insert(ignore_permissions=True)
+		open_seller = _user(self._email("routing-open"), self.seller, LEAD_READER)
+		self.assertEqual([u.user for u in _rule().users], [open_seller])
+
+	def test_disabled_users_are_left_out(self):
+		seller = _user(self._email("routing-disabled"), self.seller, LEAD_READER)
+		frappe.db.set_value("User", seller, "enabled", 0)
+		sync_lead_assignment_users()
+		self.assertNotIn(seller, [u.user for u in _rule().users])
+
+	def test_website_inquiry_survives_an_assignee_without_full_access(self):
+		# The case that lost inquiries: Frappe shares a lead with an assignee who
+		# cannot see it, and the share check ran as Guest.
+		from vellox_agency.api.intake import reset_rate_limit, submit_inquiry
+		from vellox_agency.setup.commercial import PRACTICES
+
+		blind = _user(self._email("routing-blind"), self.seller)  # cannot read Lead
+		rule = _rule()
+		rule.set("users", [{"user": blind}])  # e.g. Lead read revoked after the last sync
+		rule.disabled = 0
+		rule.save(ignore_permissions=True)
+		reset_rate_limit()
+		with self.set_user("Guest"):
+			res = submit_inquiry(
+				full_name="Routing Prospect",
+				email=self._email("routing-prospect"),
+				services=[PRACTICES[0]["item_code"]],
+				message="We need a new identity for our clinic network.",
+				consent=1,
+				website_url="",
+			)
+		self.assertTrue(res["ok"])
+		self.assertTrue(frappe.db.exists("Lead", res["lead"]))
+
+	def test_setup_replaces_an_administrator_only_rule(self):
+		rule = _rule()
+		rule.set("users", [{"user": "Administrator"}])
+		rule.disabled = 0
+		rule.save(ignore_permissions=True)
+		seller = _user(self._email("routing-after-migrate"), self.seller, LEAD_READER)
+		frappe.db.set_value("Assignment Rule", ASSIGNMENT_RULE, "disabled", 0)
+		setup_lead_assignment_and_sla()
+		self.assertEqual([u.user for u in _rule().users], [seller])

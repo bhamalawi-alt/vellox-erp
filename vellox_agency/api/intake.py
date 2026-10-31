@@ -7,6 +7,7 @@ standard Lead records with consent metadata.
 """
 
 import json
+from contextlib import contextmanager
 
 import frappe
 from frappe import _
@@ -77,6 +78,22 @@ def _find_recent_duplicate(email_id: str):
 	)
 
 
+@contextmanager
+def _as_intake_writer():
+	"""Write the already-validated inquiry as Administrator.
+
+	Assignment rules share a new lead with any assignee who cannot see it, and
+	Frappe checks that share as the session user; for a Guest request it would
+	fail and the visitor's inquiry would be lost. Only the Lead write runs here.
+	"""
+	user = frappe.session.user
+	frappe.set_user("Administrator")
+	try:
+		yield
+	finally:
+		frappe.set_user(user)
+
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def submit_inquiry(**kwargs):
 	full_name = (kwargs.get("full_name") or "").strip()
@@ -101,7 +118,8 @@ def submit_inquiry(**kwargs):
 		lead.custom_vellox_inquiry = (
 			f"{lead.custom_vellox_inquiry or ''}\n\n--- follow-up submission ---\n{message}"
 		).strip()
-		lead.save(ignore_permissions=True)
+		with _as_intake_writer():
+			lead.save(ignore_permissions=True)
 		return {"ok": True, "lead": lead.name}
 
 	lead = frappe.new_doc("Lead")
@@ -116,6 +134,7 @@ def submit_inquiry(**kwargs):
 	lead.custom_vellox_consent = 1
 	if source_url:
 		lead.custom_vellox_source_url = source_url[:140]
-	lead.insert(ignore_permissions=True)
+	with _as_intake_writer():
+		lead.insert(ignore_permissions=True)
 
 	return {"ok": True, "lead": lead.name}

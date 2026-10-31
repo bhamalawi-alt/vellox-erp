@@ -53,6 +53,20 @@ def apply_baseline() -> None:
 	setup_quotation_estimate_fields()
 	_ensure_client_comment_permission()
 	setup_roles_and_permissions()
+	_report_lead_routing()
+
+
+def _report_lead_routing() -> None:
+	"""Re-sync lead routing after permissions are applied, and say so if it is off."""
+	from vellox_agency.crm_setup import ASSIGNMENT_RULE, LEAD_ROSTER_ROLES, sync_lead_assignment_users
+
+	sync_lead_assignment_users()
+	if frappe.db.get_value("Assignment Rule", ASSIGNMENT_RULE, "disabled"):
+		print(
+			f"Vellox: lead routing is OFF. No active user with {' or '.join(LEAD_ROSTER_ROLES)} "
+			"can see every Lead, so new website inquiries are not assigned to anyone. "
+			"Give your salespeople the Vellox Sales role and access to Leads."
+		)
 
 
 def setup_roles_and_permissions() -> None:

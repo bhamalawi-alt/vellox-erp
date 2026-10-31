@@ -33,9 +33,13 @@ doc_events = {
 	)
 }
 
-doc_events["User"] = {
-	"on_update": "vellox_agency.crm_setup.sync_lead_assignment_users",
-}
+# Lead routing follows roles and Lead access; re-sync whenever either changes.
+# after_delete (not on_trash) so the deleted row no longer counts.
+for _doctype in ("User", "User Permission", "Custom DocPerm", "Role"):
+	doc_events[_doctype] = {
+		"on_update": "vellox_agency.crm_setup.sync_lead_assignment_users",
+		"after_delete": "vellox_agency.crm_setup.sync_lead_assignment_users",
+	}
 
 doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
