@@ -44,15 +44,25 @@ for _doctype in ("User", "User Permission", "Custom DocPerm", "Role"):
 # Role Permission Manager edits Lead permissions with direct DB writes that skip
 # doc hooks, so lead routing is also re-synced every hour.
 scheduler_events = {
-	"hourly": ["vellox_agency.crm_setup.sync_lead_assignment_users"],
+	"hourly": [
+		"vellox_agency.crm_setup.sync_lead_assignment_users",
+		"vellox_agency.security.revoke_shares_beyond_jobs",
+	],
 }
+
+# Shares and assignments never give more than the receiver's job ([P3-140]).
+doc_events["DocShare"] = {"validate": "vellox_agency.security.validate_share_within_job"}
+doc_events["ToDo"] = {"validate": "vellox_agency.security.validate_todo_within_access"}
 
 doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
 }
 
 doc_events["Project"] = {
+	# Runs before ERPNext's validate, which shares the project with new members.
+	"before_validate": "vellox_agency.security.remember_project_members",
 	"validate": "vellox_agency.change_control.gate_health_transition",
+	"on_update": "vellox_agency.security.forget_project_members",
 }
 
 doc_events["Vellox Change Request"] = {
@@ -94,6 +104,40 @@ has_permission = {
 		"Retainer",
 	)
 }
+
+# Per-job access limits and team-member project scoping ([P3-140]). Must list
+# security.GOVERNED_DOCTYPES plus "Deliverable" (checked by test_role_access).
+JOB_ACCESS_DOCTYPES = (
+	"Lead",
+	"Opportunity",
+	"Quotation",
+	"Customer",
+	"Contact",
+	"Item",
+	"Project",
+	"Project Update",
+	"Project Template",
+	"Task",
+	"Timesheet",
+	"Activity Cost",
+	"Sales Invoice",
+	"Payment Entry",
+	"Sales Order",
+	"Delivery Note",
+	"POS Invoice",
+	"POS Invoice Merge Log",
+	"Account",
+	"Cost Center",
+	"Quality Action",
+	"Quality Feedback",
+	"Quality Goal",
+	"Quality Meeting",
+	"Quality Procedure",
+	"Quality Review",
+	"Deliverable",
+)
+for _doctype in JOB_ACCESS_DOCTYPES:
+	has_permission[_doctype] = "vellox_agency.security.job_access_permission"
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -203,9 +247,12 @@ after_install = "vellox_agency.install.after_install"
 # Permissions evaluated in scripted ways
 
 permission_query_conditions = {
-	"Deliverable": "vellox_agency.security.deliverable_permission_query",
 	"Comment": "vellox_agency.security.comment_permission_query",
 }
+for _doctype in JOB_ACCESS_DOCTYPES:
+	permission_query_conditions[_doctype] = ["vellox_agency.security.job_access_query"]
+permission_query_conditions["Deliverable"].insert(0, "vellox_agency.security.deliverable_permission_query")
+permission_query_conditions["File"] = ["vellox_agency.security.job_access_file_query"]
 
 # has_permission = {
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",

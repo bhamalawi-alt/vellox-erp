@@ -55,7 +55,10 @@ class TestDeliveryVisibility(FrappeTestCase):
             self.assertIn(visible.name, result)
             self.assertNotIn(hidden.name, result)
 
-    def test_staff_user_sees_all_deliverables(self):
+    def test_staff_user_sees_internal_deliverables_on_their_projects(self):
+        # Since [P3-140] (owner-approved 2026-10-31) Agency Staff, like Team
+        # Member, sees only projects they are listed on; this test used to
+        # expect every deliverable. Other projects are covered in test_role_access.
         frappe.get_doc({
             "doctype": "Deliverable",
             "project": self.project.name,
@@ -73,6 +76,10 @@ class TestDeliveryVisibility(FrappeTestCase):
             u.insert(ignore_permissions=True)
             u.add_roles("Agency Staff")
             u.save(ignore_permissions=True)
+        project = frappe.get_doc("Project", self.project.name)
+        if staff not in [row.user for row in project.users]:
+            project.append("users", {"user": staff})
+            project.save(ignore_permissions=True)
 
         with self.set_user(staff):
             result = frappe.get_list(
