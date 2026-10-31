@@ -35,12 +35,45 @@ def required_approver_role(doc) -> str | None:
 	return "Agency Manager"
 
 
+APPROVAL_FIELDS = ("custom_vellox_approval_status", "custom_vellox_approved_by", "custom_vellox_approval_terms")
+
+
+def _commercial_terms(doc) -> str:
+	"""What an approval covers: a change to any of these re-opens it."""
+	gross = sum(flt(row.amount) for row in (doc.get("items") or []))
+	return f"{flt(gross, 2)}|{flt(doc.net_total, 2)}|{flt(doc.get('custom_vellox_estimated_margin'), 2)}"
+
+
+def _set_approval(doc, status: str, approved_by: str | None, terms: str | None) -> None:
+	doc.custom_vellox_approval_status = status
+	doc.custom_vellox_approved_by = approved_by
+	doc.custom_vellox_approval_terms = terms
+
+
 def stamp_approval_on_validate(doc, method=None) -> None:
+	"""Keep the approval fields honest on every save.
+
+	They change only through approve_quotation (which sets the flag) or here;
+	edits from the form or API are dropped. An approval stays valid only while
+	the commercial terms it was given for are unchanged.
+	"""
 	if doc.doctype != "Quotation":
 		return
-	if required_approver_role(doc) is None and not doc.custom_vellox_approved_by:
-		doc.custom_vellox_approval_status = "Approved"
-		doc.custom_vellox_approved_by = "auto"
+	if not doc.flags.vellox_approving:
+		before = None if doc.is_new() else doc.get_doc_before_save()
+		if before:
+			_set_approval(doc, *(before.get(field) for field in APPROVAL_FIELDS))
+		else:
+			_set_approval(doc, "Pending", None, None)
+
+	terms = _commercial_terms(doc)
+	if doc.flags.vellox_approving:
+		doc.custom_vellox_approval_terms = terms
+	elif required_approver_role(doc) is None:
+		if doc.custom_vellox_approval_status != "Approved" or doc.custom_vellox_approved_by == "auto":
+			_set_approval(doc, "Approved", "auto", terms)
+	elif doc.custom_vellox_approval_status == "Approved" and doc.custom_vellox_approval_terms != terms:
+		_set_approval(doc, "Pending", None, None)
 
 
 def gate_submission(doc, method=None) -> None:
@@ -57,12 +90,23 @@ def gate_submission(doc, method=None) -> None:
 		)
 
 
+def _approval_refusal(doc) -> tuple[str, type[Exception]] | None:
+	"""Why the session user may not approve this quotation now, or None if they may."""
+	if doc.docstatus != 0:
+		return _("Only a draft quotation can be approved."), frappe.ValidationError
+	required = required_approver_role(doc)
+	if not required:
+		return _("This quotation is within the auto-approved band."), frappe.ValidationError
+	if doc.get("custom_vellox_approval_status") == "Approved":
+		return _("This quotation is already approved."), frappe.ValidationError
+	if not set(APPROVERS[required]) & set(frappe.get_roles()):
+		return _("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError
+	return None
+
+
 def can_approve(doc) -> bool:
 	"""True if the session user may approve this draft quotation now."""
-	required = required_approver_role(doc)
-	if not required or doc.docstatus != 0 or doc.get("custom_vellox_approval_status") == "Approved":
-		return False
-	return bool(set(APPROVERS[required]) & set(frappe.get_roles()))
+	return _approval_refusal(doc) is None and bool(frappe.has_permission("Quotation", "submit"))
 
 
 def quotation_actions(doc) -> dict:
@@ -93,17 +137,13 @@ def add_quotation_actions(doc, method=None) -> None:
 
 @frappe.whitelist(methods=["POST"])
 def approve_quotation(quotation: str):
-	doc = frappe.get_doc("Quotation", quotation)
+	doc = frappe.get_doc("Quotation", quotation, for_update=True)
 	doc.check_permission("submit")
-	if doc.docstatus != 0:
-		frappe.throw(_("Only a draft quotation can be approved."), frappe.ValidationError)
-	required = required_approver_role(doc)
-	if required and not set(APPROVERS[required]) & set(frappe.get_roles()):
-		frappe.throw(
-			_("Only {0} can approve this quotation.").format(frappe.bold(required)),
-			frappe.PermissionError,
-		)
+	if refusal := _approval_refusal(doc):
+		message, exc = refusal
+		frappe.throw(message, exc)
 	doc.custom_vellox_approval_status = "Approved"
 	doc.custom_vellox_approved_by = frappe.session.user
+	doc.flags.vellox_approving = True
 	doc.save(ignore_permissions=True)
 	return {"ok": True}

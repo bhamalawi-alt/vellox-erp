@@ -1,5 +1,7 @@
 """Approve / Create Project buttons on the Quotation form ([P3-98])."""
 
+import json
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
@@ -25,7 +27,9 @@ OPS_TIER = {"discount": 10, "margin": 30.0}
 MANAGER_TIER = {"discount": 30, "margin": 10.0}
 
 
-class TestQuotationActions(FrappeTestCase):
+class _JobUsersCase(FrappeTestCase):
+	"""One user per job, created once per class (user creation is throttled)."""
+
 	@classmethod
 	def setUpClass(cls):
 		super().setUpClass()
@@ -44,6 +48,8 @@ class TestQuotationActions(FrappeTestCase):
 			frappe.get_doc("User", email).add_roles(*JOB_PROFILES[job])
 			cls.users[job] = email
 
+
+class TestQuotationActions(_JobUsersCase):
 	def _actions(self, job, quote):
 		from vellox_agency.approval import quotation_actions
 
@@ -119,4 +125,125 @@ class TestQuotationActions(FrappeTestCase):
 		with self.set_user(self.users["Agency Manager"]):
 			doc = frappe.get_doc("Quotation", quote.name)
 			doc.run_method("onload")
-			self.assertIn("can_approve", doc.get_onload().get("vellox_actions", {}))
+			# 0% discount and no estimate costs: the auto band, nothing to approve.
+			self.assertEqual(
+				doc.get_onload().get("vellox_actions"),
+				{"can_approve": False, "can_create_project": False, "project": None},
+			)
+
+
+def _real_quote(discount, labor_cost=0):
+	"""A saved draft quote of 1000 with `discount`% off and `labor_cost` estimated."""
+	from erpnext.selling.doctype.quotation.test_quotation import make_quotation
+	from erpnext.stock.doctype.item.test_item import make_item
+
+	from vellox_agency.tests.test_offer_builder import TEST_CUSTOMER, TEST_PRICE_LIST
+
+	item = "_Test Vellox Actions Service"
+	if not frappe.db.exists("Item", item):
+		make_item(item, {"is_stock_item": 0, "stock_uom": "Unit"})
+	quote = make_quotation(
+		item=item, party_name=TEST_CUSTOMER, selling_price_list=TEST_PRICE_LIST, warehouse="", qty=1, rate=1000,
+		do_not_save=True,
+	)
+	quote.apply_discount_on = "Net Total"
+	quote.additional_discount_percentage = discount
+	if labor_cost:
+		quote.custom_vellox_estimate_hours = json.dumps([{"role": "Dev", "hours": 1, "rate": labor_cost}])
+	return quote.insert(ignore_permissions=True)
+
+
+def _ops_tier_quote():
+	return _real_quote(10, labor_cost=630)  # 10% off, 30% margin
+
+
+def _manager_tier_quote():
+	return _real_quote(30, labor_cost=630)  # 30% off, 10% margin
+
+
+class TestApprovalGate(_JobUsersCase):
+	"""Only approve_quotation can approve, and a material change re-opens approval."""
+
+	def _approval(self, name):
+		return frappe.db.get_value(
+			"Quotation", name, ["custom_vellox_approval_status", "custom_vellox_approved_by"], as_dict=True
+		)
+
+	def _approve(self, job, name):
+		from vellox_agency.approval import approve_quotation
+
+		with self.set_user(self.users[job]):
+			return approve_quotation(name)
+
+	def test_editing_the_approval_fields_does_not_approve(self):
+		quote = _manager_tier_quote()
+		with self.set_user(self.users["Sales"]):
+			doc = frappe.get_doc("Quotation", quote.name)
+			doc.custom_vellox_approval_status = "Approved"
+			doc.custom_vellox_approved_by = self.users["Agency Manager"]
+			doc.save()
+			self.assertEqual(self._approval(quote.name).custom_vellox_approval_status, "Pending")
+			self.assertFalse(self._approval(quote.name).custom_vellox_approved_by)
+			with self.assertRaisesRegex(frappe.ValidationError, "commercial approval"):
+				frappe.get_doc("Quotation", quote.name).submit()
+
+	def test_new_and_copied_quotes_start_unapproved(self):
+		quote = _manager_tier_quote()
+		self._approve("Agency Manager", quote.name)
+		copy = frappe.copy_doc(frappe.get_doc("Quotation", quote.name)).insert(ignore_permissions=True)
+		self.assertEqual(copy.custom_vellox_approval_status, "Pending")
+		self.assertFalse(copy.custom_vellox_approved_by)
+
+	def test_approver_must_match_the_tier(self):
+		quote = _manager_tier_quote()
+		with self.assertRaises(frappe.PermissionError):
+			self._approve("Operations", quote.name)
+		self._approve("Agency Manager", quote.name)
+		approval = self._approval(quote.name)
+		self.assertEqual(approval.custom_vellox_approval_status, "Approved")
+		self.assertEqual(approval.custom_vellox_approved_by, self.users["Agency Manager"])
+
+		ops_quote = _ops_tier_quote()
+		self._approve("Operations", ops_quote.name)
+		self.assertEqual(self._approval(ops_quote.name).custom_vellox_approved_by, self.users["Operations"])
+
+	def test_an_approval_is_not_overwritten(self):
+		quote = _ops_tier_quote()
+		self._approve("Agency Manager", quote.name)
+		with self.assertRaisesRegex(frappe.ValidationError, "already approved"):
+			self._approve("Operations", quote.name)
+		self.assertEqual(self._approval(quote.name).custom_vellox_approved_by, self.users["Agency Manager"])
+
+	def test_only_drafts_can_be_approved(self):
+		quote = _ops_tier_quote()
+		self._approve("Operations", quote.name)
+		frappe.get_doc("Quotation", quote.name).submit()
+		with self.assertRaisesRegex(frappe.ValidationError, "draft"):
+			self._approve("Agency Manager", quote.name)
+
+	def test_a_material_change_reopens_approval(self):
+		quote = _ops_tier_quote()
+		self._approve("Operations", quote.name)
+		doc = frappe.get_doc("Quotation", quote.name)
+		doc.additional_discount_percentage = 30
+		doc.save(ignore_permissions=True)
+		self.assertEqual(self._approval(quote.name).custom_vellox_approval_status, "Pending")
+		self.assertFalse(self._approval(quote.name).custom_vellox_approved_by)
+		with self.assertRaisesRegex(frappe.ValidationError, "commercial approval"):
+			frappe.get_doc("Quotation", quote.name).submit()
+
+	def test_an_unchanged_resave_keeps_approval(self):
+		quote = _ops_tier_quote()
+		self._approve("Operations", quote.name)
+		doc = frappe.get_doc("Quotation", quote.name)
+		doc.terms = "Payment within 30 days."
+		doc.save(ignore_permissions=True)
+		self.assertEqual(self._approval(quote.name).custom_vellox_approval_status, "Approved")
+
+	def test_leaving_the_auto_band_reopens_approval(self):
+		quote = _real_quote(0)
+		self.assertEqual(self._approval(quote.name).custom_vellox_approved_by, "auto")
+		doc = frappe.get_doc("Quotation", quote.name)
+		doc.additional_discount_percentage = 30
+		doc.save(ignore_permissions=True)
+		self.assertEqual(self._approval(quote.name).custom_vellox_approval_status, "Pending")

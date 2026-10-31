@@ -62,7 +62,8 @@ async function buildTechnicalProposal(frm) {
 }
 
 // Buttons come from the server's onload actions ([P3-98]); the server methods
-// check every rule again when a button is used.
+// check every rule again when a button is used. A failed call has already shown
+// the server's message, so callServer returns null instead of throwing.
 function quotationButtons(actions) {
 	if (!actions) {
 		return [];
@@ -79,28 +80,42 @@ function quotationButtons(actions) {
 	return buttons;
 }
 
+async function callServer(options) {
+	try {
+		return await frappe.call(options);
+	} catch (error) {
+		return null;
+	}
+}
+
 async function approveQuotation(frm) {
 	if (frm.is_dirty()) {
 		frappe.msgprint(__("Save the quotation before approving it."));
 		return;
 	}
-	await frappe.call({
+	const response = await callServer({
 		method: "vellox_agency.approval.approve_quotation",
 		args: { quotation: frm.doc.name },
 		freeze: true,
 		freeze_message: __("Approving"),
 	});
+	if (!response) {
+		return;
+	}
 	frappe.show_alert({ message: __("Quotation approved"), indicator: "green" });
 	await frm.reload_doc();
 }
 
 async function createProject(frm) {
-	const response = await frappe.call({
+	const response = await callServer({
 		method: "vellox_agency.acceptance.create_project_from_quotation",
 		args: { quotation: frm.doc.name },
 		freeze: true,
 		freeze_message: __("Creating Project"),
 	});
+	if (!response) {
+		return;
+	}
 	frappe.set_route("Form", "Project", response.message.project);
 }
 

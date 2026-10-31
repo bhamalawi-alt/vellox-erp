@@ -45,9 +45,12 @@ class TestCommercialApproval(FrappeTestCase):
 			gate_submission(doc)
 
 	def test_auto_band_stamps_approval_on_validate(self):
-		from vellox_agency.approval import stamp_approval_on_validate
+		# Stamping now reads the saved approval, so it needs a real quotation.
+		from vellox_agency.tests.test_offer_builder import _bootstrap_erpnext_test_fixtures
+		from vellox_agency.tests.test_quotation_actions import _real_quote
 
-		doc = _doc(net_total=97000, gross=100000, margin=50.0)
-		stamp_approval_on_validate(doc)
-		self.assertEqual(doc["custom_vellox_approval_status"], "Approved")
+		_bootstrap_erpnext_test_fixtures()
+		doc = _real_quote(3)
+		self.assertEqual(doc.custom_vellox_approval_status, "Approved")
+		self.assertEqual(doc.custom_vellox_approved_by, "auto")
 		gate_submission(doc)  # no raise

@@ -50,7 +50,8 @@ def _ensure_acceptance_fields() -> None:
 def create_project_from_quotation(quotation: str):
 	_ensure_acceptance_fields()
 
-	doc = frappe.get_doc("Quotation", quotation)
+	# Lock the quote so two clicks at once cannot both create a project.
+	doc = frappe.get_doc("Quotation", quotation, for_update=True)
 	doc.check_permission("read")
 
 	if not set(CREATION_ROLES) & set(frappe.get_roles()):

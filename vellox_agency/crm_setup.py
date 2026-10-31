@@ -259,6 +259,8 @@ def setup_commercial_approval_fields() -> None:
 					"fieldtype": "Select",
 					"options": "Pending\nApproved\nNot Approved",
 					"default": "Pending",
+					"read_only": 1,
+					"no_copy": 1,
 					"insert_after": "custom_vellox_estimated_margin",
 				},
 				{
@@ -266,7 +268,18 @@ def setup_commercial_approval_fields() -> None:
 					"label": "Approved By",
 					"fieldtype": "Data",
 					"read_only": 1,
+					"no_copy": 1,
 					"insert_after": "custom_vellox_approval_status",
+				},
+				{
+					# The terms an approval was given for (see approval._commercial_terms).
+					"fieldname": "custom_vellox_approval_terms",
+					"label": "Approved Terms",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"hidden": 1,
+					"no_copy": 1,
+					"insert_after": "custom_vellox_approved_by",
 				},
 			]
 		},
