@@ -33,6 +33,10 @@ doc_events = {
 	)
 }
 
+doc_events["User"] = {
+	"on_update": "vellox_agency.crm_setup.sync_lead_assignment_users",
+}
+
 doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
 }

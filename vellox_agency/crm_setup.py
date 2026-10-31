@@ -61,6 +61,8 @@ LOST_REASONS = ["Price", "Delay in implementation", "Chose a competitor", "Proje
 
 ASSIGNMENT_RULE = "Vellox Intake Assignment"
 FIRST_RESPONSE_HOURS = 4
+# New leads go round-robin to active users with the first role that has anyone.
+LEAD_ROSTER_ROLES = ("Vellox Sales", "Agency Manager")
 
 
 def setup_lead_assignment_and_sla() -> None:
@@ -75,13 +77,65 @@ def setup_lead_assignment_and_sla() -> None:
 				"description": "Round-robin new website inquiries among Vellox Sales users.",
 				"assign_condition": 'status == "Lead"',
 				"priority": 1,
-				"users": [{"user": "Administrator"}],  # ops adds the real sales roster
 				"assignment_days": [
 					{"day": day}
 					for day in ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 				],
 			}
 		).insert(ignore_permissions=True)
+	sync_lead_assignment_users()
+
+
+def lead_assignment_roster() -> list[str]:
+	"""Active desk users who can read Leads, from the first LEAD_ROSTER_ROLES role that has any.
+
+	Users who cannot read Lead are left out: Frappe would try to share each
+	lead with them, which fails for website inquiries submitted as Guest.
+	"""
+	for role in LEAD_ROSTER_ROLES:
+		holders = frappe.get_all("Has Role", filters={"role": role, "parenttype": "User"}, pluck="parent")
+		holders = [user for user in holders if user not in ("Administrator", "Guest")]
+		if not holders:
+			continue
+		users = frappe.get_all(
+			"User",
+			filters={"name": ["in", holders], "enabled": 1, "user_type": "System User"},
+			pluck="name",
+			order_by="name asc",
+		)
+		users = [user for user in users if frappe.has_permission("Lead", "read", user=user)]
+		if users:
+			return users
+	return []
+
+
+def sync_lead_assignment_users(doc=None, method=None) -> None:
+	"""Keep the intake rule's users equal to the roster; disable it when nobody qualifies.
+
+	Runs on setup and as a User on_update hook, so granting or removing the
+	Vellox Sales role (or disabling a user) updates lead routing immediately.
+	An enabled rule with no users would crash Frappe's round-robin.
+	"""
+	if not frappe.db.exists("Assignment Rule", ASSIGNMENT_RULE):
+		return
+	roster = lead_assignment_roster()
+	rule = frappe.get_doc("Assignment Rule", ASSIGNMENT_RULE)
+	disabled = 0 if roster else 1
+	# last_user is where round-robin resumes; a removed or deleted user there
+	# would fail the rule's link validation on save.
+	last_user = rule.last_user if rule.last_user in roster else None
+	if [u.user for u in rule.users] == roster and rule.disabled == disabled and rule.last_user == last_user:
+		return
+	rule.set("users", [{"user": user} for user in roster])
+	rule.disabled = disabled
+	rule.last_user = last_user
+	rule.save(ignore_permissions=True)
+	if not roster:
+		frappe.logger("vellox_lead_routing", allow_site=True).warning(
+			"%s disabled: no active user with any of %s can read Leads",
+			ASSIGNMENT_RULE,
+			", ".join(LEAD_ROSTER_ROLES),
+		)
 
 
 def _ensure_sales_stage_prospecting() -> None:
