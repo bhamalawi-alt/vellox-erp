@@ -45,7 +45,9 @@ class _GapsCase(FrappeTestCase):
 		_outgoing_email_account()
 		_user(PM, "Vellox Project Manager", "Projects User", "Projects Manager")
 		_user(MEMBER, "Vellox Team Member", "Projects User")
-		_user(SALES, "Vellox Sales", "Sales User")
+		# Sales User only: a "Vellox Sales" user would join lead routing on the test
+		# site, and the assignment emails then commit other modules' test leads.
+		_user(SALES, "Sales User")
 		_user(OPS, "Vellox Operations", "Sales User")
 		_test_item()
 
