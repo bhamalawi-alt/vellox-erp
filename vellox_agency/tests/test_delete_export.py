@@ -228,3 +228,26 @@ class TestExportWithRealJobs(FrappeTestCase):
 	def test_a_project_manager_is_refused(self):
 		with self.assertRaisesRegex(frappe.PermissionError, "Finance and the Agency Manager"):
 			self._export_customers(self.pm)
+
+	def test_finance_exports_only_lists_its_job_can_see(self):
+		# Query reports run their own SQL, so an export right on a list Finance
+		# cannot see would hand over every row of it.
+		from frappe.permissions import can_export
+
+		with self.set_user(self.finance):
+			self.assertTrue(can_export("Customer"))
+			for doctype in ("Lead", "Opportunity", "Task"):
+				with self.subTest(doctype=doctype):
+					self.assertFalse(can_export(doctype))
+
+	def test_an_earlier_grant_on_hidden_lists_is_removed(self):
+		from frappe.permissions import add_permission, setup_custom_perms, update_permission_property
+
+		from vellox_agency.security import grant_finance_export
+
+		setup_custom_perms("Lead")
+		if not frappe.db.exists("Custom DocPerm", {"parent": "Lead", "role": "Vellox Finance", "permlevel": 0}):
+			add_permission("Lead", "Vellox Finance", 0)
+		update_permission_property("Lead", "Vellox Finance", 0, "export", 1, validate=False)
+		grant_finance_export()
+		self.assertFalse(frappe.db.exists("Custom DocPerm", {"parent": "Lead", "role": "Vellox Finance"}))
