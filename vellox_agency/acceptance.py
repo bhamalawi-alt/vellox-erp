@@ -46,7 +46,7 @@ def _ensure_acceptance_fields() -> None:
 	)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_project_from_quotation(quotation: str):
 	_ensure_acceptance_fields()
 

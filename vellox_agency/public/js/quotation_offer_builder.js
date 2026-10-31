@@ -61,14 +61,71 @@ async function buildTechnicalProposal(frm) {
 	}
 }
 
+// Buttons come from the server's onload actions ([P3-98]); the server methods
+// check every rule again when a button is used.
+function quotationButtons(actions) {
+	if (!actions) {
+		return [];
+	}
+	const buttons = [];
+	if (actions.can_approve) {
+		buttons.push("approve");
+	}
+	if (actions.project) {
+		buttons.push("view_project");
+	} else if (actions.can_create_project) {
+		buttons.push("create_project");
+	}
+	return buttons;
+}
+
+async function approveQuotation(frm) {
+	if (frm.is_dirty()) {
+		frappe.msgprint(__("Save the quotation before approving it."));
+		return;
+	}
+	await frappe.call({
+		method: "vellox_agency.approval.approve_quotation",
+		args: { quotation: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Approving"),
+	});
+	frappe.show_alert({ message: __("Quotation approved"), indicator: "green" });
+	await frm.reload_doc();
+}
+
+async function createProject(frm) {
+	const response = await frappe.call({
+		method: "vellox_agency.acceptance.create_project_from_quotation",
+		args: { quotation: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Creating Project"),
+	});
+	frappe.set_route("Form", "Project", response.message.project);
+}
+
+function addQuotationActionButtons(frm) {
+	const actions = (frm.doc.__onload || {}).vellox_actions;
+	for (const button of quotationButtons(actions)) {
+		if (button === "approve") {
+			frm.add_custom_button(__("Approve Quote"), () => approveQuotation(frm)).addClass("btn-primary");
+		} else if (button === "create_project") {
+			frm.add_custom_button(__("Create Project"), () => createProject(frm));
+		} else if (button === "view_project") {
+			frm.add_custom_button(__("View Project"), () => frappe.set_route("Form", "Project", actions.project));
+		}
+	}
+}
+
 if (typeof module !== "undefined") {
-	module.exports = { getItemSignature, isProposalStale };
+	module.exports = { getItemSignature, isProposalStale, quotationButtons };
 }
 
 if (typeof frappe !== "undefined") {
 	frappe.ui.form.on("Quotation", {
 		refresh(frm) {
 			updateProposalDescription(frm);
+			addQuotationActionButtons(frm);
 			if (frm.doc.docstatus === 0 && frm.has_perm("write") && getItemCodes(frm.doc).length) {
 				frm.add_custom_button(__("Build Technical Proposal"), () => buildTechnicalProposal(frm));
 			}

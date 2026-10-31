@@ -80,6 +80,7 @@ doc_events["Quotation"] = {
 		"vellox_agency.approval.stamp_approval_on_validate",
 	],
 	"before_submit": "vellox_agency.approval.gate_submission",
+	"onload": "vellox_agency.approval.add_quotation_actions",
 }
 
 doc_events["Opportunity"] = {

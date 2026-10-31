@@ -9,7 +9,12 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
-APPROVAL_ROLES = ("Vellox Operations", "Agency Manager", "System Manager")
+# Who may approve each tier (lead-to-project design, section 5): Operations
+# approves only its own band; anything beyond it needs the Agency Manager.
+APPROVERS = {
+	"Vellox Operations": ("Vellox Operations", "Agency Manager", "System Manager"),
+	"Agency Manager": ("Agency Manager", "System Manager"),
+}
 
 
 def _discount_percent(doc) -> float:
@@ -52,12 +57,48 @@ def gate_submission(doc, method=None) -> None:
 		)
 
 
-@frappe.whitelist()
+def can_approve(doc) -> bool:
+	"""True if the session user may approve this draft quotation now."""
+	required = required_approver_role(doc)
+	if not required or doc.docstatus != 0 or doc.get("custom_vellox_approval_status") == "Approved":
+		return False
+	return bool(set(APPROVERS[required]) & set(frappe.get_roles()))
+
+
+def quotation_actions(doc) -> dict:
+	"""Which Vellox actions the session user may take on this quotation ([P3-98]).
+
+	The Quotation form shows buttons from this; the whitelisted methods still
+	check everything again when a button is used.
+	"""
+	from vellox_agency.acceptance import CREATION_ROLES
+
+	project = doc.get("custom_vellox_project")
+	if project and not frappe.db.exists("Project", project):
+		project = None
+	can_create_project = bool(
+		doc.docstatus == 1
+		and not project
+		and set(CREATION_ROLES) & set(frappe.get_roles())
+		and frappe.has_permission("Project", "create")
+	)
+	visible_project = project if project and frappe.has_permission("Project", "read", doc=project) else None
+	return {"can_approve": can_approve(doc), "can_create_project": can_create_project, "project": visible_project}
+
+
+def add_quotation_actions(doc, method=None) -> None:
+	"""Quotation onload hook: hand the form its allowed actions."""
+	doc.set_onload("vellox_actions", quotation_actions(doc))
+
+
+@frappe.whitelist(methods=["POST"])
 def approve_quotation(quotation: str):
 	doc = frappe.get_doc("Quotation", quotation)
 	doc.check_permission("submit")
+	if doc.docstatus != 0:
+		frappe.throw(_("Only a draft quotation can be approved."), frappe.ValidationError)
 	required = required_approver_role(doc)
-	if required and not set(APPROVAL_ROLES) & set(frappe.get_roles()):
+	if required and not set(APPROVERS[required]) & set(frappe.get_roles()):
 		frappe.throw(
 			_("Only {0} can approve this quotation.").format(frappe.bold(required)),
 			frappe.PermissionError,
