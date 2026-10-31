@@ -380,6 +380,22 @@ class TestRerouteAlertsPatch(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value("Project", project.name, "custom_vellox_project_manager"), PM)
 		self.assertEqual(frappe.db.get_value("Project", kept.name, "custom_vellox_project_manager"), MEMBER)
 
+	def test_backfill_creates_the_fields_before_using_them(self):
+		# Patches run before after_migrate adds custom fields, so on an upgraded site
+		# the Project Manager column does not exist yet (seen on the dev site). Removing
+		# a custom field here would commit mid-test, so check the call order instead.
+		from vellox_agency.patches import backfill_project_managers
+
+		calls = []
+		with (
+			unittest.mock.patch.object(
+				backfill_project_managers, "setup_project_health_field", side_effect=lambda: calls.append("setup")
+			),
+			unittest.mock.patch.object(frappe.qb, "update", side_effect=lambda *a: calls.append("update") or unittest.mock.MagicMock()),
+		):
+			backfill_project_managers.execute()
+		self.assertEqual(calls, ["setup", "update"])
+
 	def test_recipients_an_admin_changed_are_left_alone(self):
 		from vellox_agency.patches import route_delivery_alerts_to_team
 
