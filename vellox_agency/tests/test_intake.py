@@ -95,6 +95,35 @@ class TestIntake(FrappeTestCase):
 			with self.assertRaises(TooManyRequestsError):
 				_submit(email="lead6@example.com")
 
+	def _from_ip(self, ip):
+		from vellox_agency.api.intake import reset_rate_limit
+
+		reset_rate_limit(ip)
+		previous = getattr(frappe.local, "request_ip", None)
+		frappe.local.request_ip = ip
+		self.addCleanup(setattr, frappe.local, "request_ip", previous)
+		self.addCleanup(reset_rate_limit, ip)
+
+	def test_each_visitor_has_their_own_limit(self):
+		# [P3-145]: one visitor using up the limit must not block everyone else.
+		from frappe.exceptions import TooManyRequestsError
+
+		self._from_ip("203.0.113.9")
+		with self.set_user("Guest"):
+			for i in range(5):
+				_submit(email=f"busy{i}@example.com")
+			with self.assertRaises(TooManyRequestsError):
+				_submit(email="busy6@example.com")
+
+			self._from_ip("198.51.100.7")
+			self.assertTrue(_submit(email="other-visitor@example.com")["lead"])
+
+	def test_the_limit_is_keyed_on_the_request_address(self):
+		from vellox_agency.api.intake import _client_ip
+
+		self._from_ip("192.0.2.44")
+		self.assertEqual(_client_ip(), "192.0.2.44")
+
 	def test_duplicate_within_24h_merges_into_existing_lead(self):
 		with self.set_user("Guest"):
 			first = _submit()["lead"]

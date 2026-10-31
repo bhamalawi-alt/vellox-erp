@@ -21,7 +21,15 @@ RATE_LIMIT_KEY = "vellox_intake"
 
 
 def _client_ip() -> str:
-	return getattr(frappe.local, "client_ip", None) or "0.0.0.0"
+	"""The visitor's address, as Frappe resolves it for its own rate limits.
+
+	Frappe reads X-Forwarded-For first; bench's nginx config overwrites that
+	header with the real connection address, so a visitor cannot pick their own
+	bucket. Behind a CDN or second proxy, nginx needs real_ip settings for the
+	same guarantee. ([P3-145]: this used to read frappe.local.client_ip, which
+	Frappe never sets, so every visitor shared one limit.)
+	"""
+	return getattr(frappe.local, "request_ip", None) or "unknown"
 
 
 def _rate_limit_key(ip: str | None = None):
