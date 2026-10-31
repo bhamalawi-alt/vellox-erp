@@ -45,8 +45,6 @@ class _EnforceCase(FrappeTestCase):
 			}
 		).insert(ignore_permissions=True)
 
-
-class TestDeliverableSteps(_EnforceCase):
 	def _deliverable(self, **kw):
 		return frappe.get_doc(
 			{
@@ -72,6 +70,18 @@ class TestDeliverableSteps(_EnforceCase):
 		)
 		doc.save(ignore_permissions=True)
 
+	def _cr(self, **kw):
+		return frappe.get_doc(
+			{
+				"doctype": "Vellox Change Request",
+				"project": self.project.name,
+				"title": f"Enforce CR {frappe.generate_hash(length=6)}",
+				**kw,
+			}
+		)
+
+
+class TestDeliverableSteps(_EnforceCase):
 	def test_the_form_follows_the_review_steps(self):
 		doc = self._deliverable()
 		for status in ("Internal Review", "Client Review"):
@@ -132,16 +142,6 @@ class TestDeliverableSteps(_EnforceCase):
 
 
 class TestChangeRequestChecks(_EnforceCase):
-	def _cr(self, **kw):
-		return frappe.get_doc(
-			{
-				"doctype": "Vellox Change Request",
-				"project": self.project.name,
-				"title": f"Enforce CR {frappe.generate_hash(length=6)}",
-				**kw,
-			}
-		)
-
 	def test_a_new_request_cannot_start_approved(self):
 		end = frappe.db.get_value("Project", self.project.name, "expected_end_date")
 		with self.assertRaises(frappe.ValidationError):
@@ -192,3 +192,135 @@ class TestProjectFromTemplate(_EnforceCase):
 		from vellox_agency.acceptance import create_project_from_template
 
 		self.assertEqual(frappe.allowed_http_methods_for_whitelisted_func.get(create_project_from_template), ["POST"])
+
+
+class TestDeliverableRoles(_EnforceCase):
+	"""Delivery plan sections 5 and 8: Project Managers and the Agency Manager send work to
+	the client, record the client's answer and approve; others cannot, however they save."""
+
+	def _to_client_review(self):
+		doc = self._deliverable()
+		for status in ("Internal Review", "Client Review"):
+			self._set_status(doc, status)
+		return doc
+
+	def test_a_team_member_cannot_send_work_to_the_client(self):
+		doc = self._deliverable()
+		self._set_status(doc, "Internal Review")
+		with self.set_user(TEAM), self.assertRaises(frappe.PermissionError):
+			self._set_status(doc, "Client Review")
+
+	def test_a_team_member_cannot_record_the_client_answer_or_approve(self):
+		doc = self._to_client_review()
+		with self.set_user(TEAM):
+			with self.assertRaises(frappe.PermissionError):
+				self._round(doc, "Client", "Approved")
+			doc.reload()
+			doc.append(
+				"review_rounds",
+				{"reviewer": TEAM, "audience": "Client", "outcome": "Approved", "reviewed_on": frappe.utils.now_datetime()},
+			)
+			doc.status = "Approved"
+			with self.assertRaises(frappe.PermissionError):
+				doc.save(ignore_permissions=True)
+
+	def test_a_project_manager_approves_and_is_recorded_as_the_approver(self):
+		doc = self._to_client_review()
+		with self.set_user(PM):
+			self._round(doc, "Client", "Approved")
+			doc.reload()
+			doc.status = "Approved"
+			doc.accepted_by = "Guest"  # read-only on the form; a client could still send it
+			doc.accepted_on = "2020-01-01 00:00:00"
+			doc.save(ignore_permissions=True)
+		approved = frappe.db.get_value("Deliverable", doc.name, ["accepted_by", "accepted_on"], as_dict=True)
+		self.assertEqual(approved.accepted_by, PM)
+		self.assertGreater(getdate(approved.accepted_on), getdate("2020-01-01"))
+
+	def test_review_rounds_cannot_be_removed_or_changed(self):
+		doc = self._deliverable()
+		self._round(doc, "Internal", "Changes Requested")
+		doc.reload()
+		doc.review_rounds[0].outcome = "Approved"
+		with self.assertRaisesRegex(frappe.ValidationError, "Review rounds"):
+			doc.save(ignore_permissions=True)
+		doc.reload()
+		doc.set("review_rounds", [])
+		with self.assertRaisesRegex(frappe.ValidationError, "Review rounds"):
+			doc.save(ignore_permissions=True)
+
+	def test_only_managers_change_the_revision_allowance(self):
+		doc = self._deliverable()
+		with self.set_user(TEAM):
+			doc.reload()
+			doc.revision_allowance = 99
+			with self.assertRaises(frappe.PermissionError):
+				doc.save(ignore_permissions=True)
+		with self.set_user(PM):
+			doc.reload()
+			doc.revision_allowance = 5
+			doc.save(ignore_permissions=True)
+		self.assertEqual(frappe.db.get_value("Deliverable", doc.name, "revision_allowance"), 5)
+
+	def test_a_copy_starts_fresh(self):
+		doc = self._to_client_review()
+		self._round(doc, "Client", "Approved")
+		self._set_status(doc, "Approved")
+		# As the form's Duplicate does: fields marked no_copy are left out.
+		copy = frappe.copy_doc(frappe.get_doc("Deliverable", doc.name), ignore_no_copy=False).insert(
+			ignore_permissions=True
+		)
+		self.assertEqual(copy.status, "Draft")
+		self.assertEqual(copy.review_rounds, [])
+		self.assertFalse(copy.accepted_by or copy.accepted_on)
+
+
+class TestChangeRequestIntegrity(_EnforceCase):
+	def _end(self):
+		return getdate(frappe.db.get_value("Project", self.project.name, "expected_end_date"))
+
+	def _approved(self, days=5, **kw):
+		cr = self._cr(status="Draft", schedule_impact_days=days, **kw).insert(ignore_permissions=True)
+		cr.status = "Under Review"
+		cr.save(ignore_permissions=True)
+		cr.status = "Approved"
+		cr.save(ignore_permissions=True)
+		return cr
+
+	def test_a_blank_status_counts_as_draft(self):
+		cr = self._cr(status="").insert(ignore_permissions=True)
+		self.assertEqual(frappe.db.get_value("Vellox Change Request", cr.name, "status"), "Draft")
+		cr.reload()
+		cr.status = "Implemented"
+		cr.price_impact = 100
+		with self.assertRaises(frappe.ValidationError):
+			cr.save(ignore_permissions=True)
+
+	def test_clearing_the_status_cannot_skip_the_checks(self):
+		cr = self._cr(status="Draft").insert(ignore_permissions=True)
+		cr.status = "Under Review"
+		cr.save(ignore_permissions=True)
+		cr.status = ""
+		with self.assertRaises(frappe.ValidationError):  # Under Review -> Draft is not a move
+			cr.save(ignore_permissions=True)
+
+	def test_the_end_date_moves_exactly_once(self):
+		start = self._end()
+		cr = self._approved(days=5)
+		self.assertEqual(self._end(), getdate(add_days(start, 5)))
+		for _ in range(2):
+			cr.reload()
+			cr.approved_by = None  # read-only on the form; a client could still send it
+			cr.save(ignore_permissions=True)
+		self.assertEqual(self._end(), getdate(add_days(start, 5)))
+
+	def test_a_spoofed_approver_neither_blocks_the_shift_nor_sticks(self):
+		start = self._end()
+		cr = self._cr(status="Draft", schedule_impact_days=3).insert(ignore_permissions=True)
+		cr.status = "Under Review"
+		cr.save(ignore_permissions=True)
+		cr.status = "Approved"
+		cr.approved_by = "spoof"
+		cr.save(ignore_permissions=True)
+		self.assertEqual(self._end(), getdate(add_days(start, 3)))
+		self.assertEqual(frappe.db.get_value("Vellox Change Request", cr.name, "approved_by"), "Administrator")

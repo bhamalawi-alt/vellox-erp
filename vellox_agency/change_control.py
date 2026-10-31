@@ -45,11 +45,12 @@ def validate_change_request(doc, method=None) -> None:
 		return
 	# Notifications can only address fields on the record itself ([P3-99]).
 	doc.team_emails = project_team_emails(doc.project)
-	# A new request counts as moving from Draft, so it cannot skip the checks
-	# below by being saved as Approved or Implemented straight away ([P3-146]).
-	old_status = "Draft" if doc.is_new() else frappe.db.get_value("Vellox Change Request", doc.name, "status")
+	# A blank status is Draft, and a new request counts as moving from Draft, so
+	# neither can skip the checks below ([P3-146]).
+	doc.status = doc.status or "Draft"
+	old_status = "Draft" if doc.is_new() else (frappe.db.get_value("Vellox Change Request", doc.name, "status") or "Draft")
 
-	if old_status and old_status != (doc.status or "Draft"):
+	if old_status != doc.status:
 		allowed = CR_LEGAL_TRANSITIONS.get(old_status, set())
 		if doc.status not in allowed:
 			frappe.throw(
@@ -82,11 +83,14 @@ def validate_change_request(doc, method=None) -> None:
 
 
 def shift_schedule_on_approval(doc, method=None) -> None:
+	"""on_update: move the project end date once, on the save that approves the request.
+
+	Keyed on the status change itself, not on approved_by, which a client can send.
+	"""
 	if doc.doctype != "Vellox Change Request" or doc.status != "Approved":
 		return
-	if doc.is_new():  # refused by validate_change_request; never move the date for it
-		return
-	if doc.approved_by:  # already stamped earlier — apply once
+	before = doc.get_doc_before_save()
+	if not before or before.status == "Approved":
 		return
 	days = int(doc.schedule_impact_days or 0)
 	if days:

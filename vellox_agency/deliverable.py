@@ -32,6 +32,24 @@ LEGAL_TRANSITIONS = {
 # Approved and Cancelled are terminal — no outgoing transitions.
 ALLOWED_MOVES = {status: set(actions.values()) for status, actions in LEGAL_TRANSITIONS.items()}
 
+# Delivery plan sections 5 and 8: sending work to the client, recording the
+# client's answer, approving and changing the revision allowance are for these.
+DELIVERY_MANAGER_ROLES = ("System Manager", "Agency Manager", "Vellox Project Manager")
+MANAGER_ONLY_STATUSES = {"Client Review", "Approved"}
+DEFAULT_REVISION_ALLOWANCE = 2
+ROUND_FIELDS = ("reviewer", "audience", "outcome", "comments", "reviewed_on")
+
+
+def _is_delivery_manager() -> bool:
+    return bool(set(DELIVERY_MANAGER_ROLES) & set(frappe.get_roles()))
+
+
+def _require_delivery_manager(what: str) -> None:
+    if not _is_delivery_manager():
+        frappe.throw(
+            _("Only a Project Manager or the Agency Manager can {0}.").format(what), frappe.PermissionError
+        )
+
 REQUIRE_CLIENT_REVIEW_FOR_APPROVE = True
 
 
@@ -74,9 +92,12 @@ def transition(doc, action):
 
 
 def validate_deliverable(doc, method=None):
-    """Hook: enforce the status order and version immutability on every save."""
-    if not doc.is_new():
+    """Hook: enforce the status order, who may do what, and the append-only history on every save."""
+    before = None if doc.is_new() else doc.get_doc_before_save()
+    if before:
         _enforce_version_immutability(doc)
+    _enforce_review_rounds(doc, before)
+    _enforce_allowance(doc, before)
     _enforce_status_move(doc)
     # Notification conditions cannot count child rows, so the exhausted check
     # reaches the "Revision Allowance Exhausted" condition as a per-save flag.
@@ -103,6 +124,8 @@ def _enforce_status_move(doc):
             _("A deliverable cannot move from {0} to {1}.").format(frappe.bold(old), frappe.bold(new)),
             frappe.ValidationError,
         )
+    if new in MANAGER_ONLY_STATUSES:
+        _require_delivery_manager(_("move a deliverable to {0}").format(frappe.bold(new)))
     if old == "Changes Requested" and new == "Internal Review" and _is_revision_exhausted(doc):
         frappe.throw(
             _("Revision allowance ({0}) exhausted. A Change Request is required, then a manager "
@@ -111,9 +134,33 @@ def _enforce_status_move(doc):
         )
     if new == "Approved":
         _require_approved_client_round(doc)
-        doc.accepted_on = doc.accepted_on or frappe.utils.now_datetime()
-        doc.accepted_by = doc.accepted_by or frappe.session.user
+        # Always the real approver and time: these fields are read-only on the
+        # form, but a client can still send values for them.
+        doc.accepted_on = frappe.utils.now_datetime()
+        doc.accepted_by = frappe.session.user
     _sync_current_version(doc)
+
+
+def _enforce_review_rounds(doc, before):
+    """Review rounds are the approval record: append-only, and client answers come from managers."""
+    old_rounds = {r.name: r for r in (before.review_rounds if before else []) if r.name}
+    current = {r.name for r in doc.review_rounds or [] if r.name}
+    if set(old_rounds) - current:
+        frappe.throw(_("Review rounds cannot be removed."), frappe.ValidationError)
+    for row in doc.review_rounds or []:
+        old = old_rounds.get(row.name)
+        if old:
+            if any(str(row.get(f) or "") != str(old.get(f) or "") for f in ROUND_FIELDS):
+                frappe.throw(_("Review rounds cannot be changed after they are added."), frappe.ValidationError)
+        elif row.audience == "Client":
+            _require_delivery_manager(_("record the client's answer"))
+
+
+def _enforce_allowance(doc, before):
+    """Raising the allowance reopens review rounds, so only managers may; lowering is stricter."""
+    previous = before.revision_allowance if before else DEFAULT_REVISION_ALLOWANCE
+    if (doc.revision_allowance or 0) > (previous or 0):
+        _require_delivery_manager(_("raise the revision allowance"))
 
 
 def _enforce_version_immutability(doc):
