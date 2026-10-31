@@ -12,6 +12,10 @@ required_apps = ["erpnext"]
 
 before_migrate = "vellox_agency.compatibility.validate_runtime_compatibility"
 
+# Vellox settings (sales stages, lost reasons, the lead assignment rule,
+# notifications, roles) are created by apply_baseline, not `fixtures`: fixtures
+# re-import on every migrate and would overwrite an admin's edits, while the
+# setup code creates what is missing and leaves edited records alone ([P3-100]).
 after_migrate = "vellox_agency.security.apply_baseline"
 
 doctype_js = {"Quotation": "public/js/quotation_offer_builder.js"}
@@ -48,7 +52,10 @@ scheduler_events = {
 		"vellox_agency.crm_setup.sync_lead_assignment_users",
 		"vellox_agency.security.revoke_shares_beyond_jobs",
 	],
-	"daily": ["vellox_agency.lead_followup.send_late_reply_digest"],
+	"daily": [
+		"vellox_agency.lead_followup.send_late_reply_digest",
+		"vellox_agency.scheduled.send_stale_opportunity_reminders",
+	],
 }
 
 # Shares and assignments never give more than the receiver's job ([P3-140]).
