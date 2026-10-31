@@ -247,3 +247,55 @@ class TestApprovalGate(_JobUsersCase):
 		doc.additional_discount_percentage = 30
 		doc.save(ignore_permissions=True)
 		self.assertEqual(self._approval(quote.name).custom_vellox_approval_status, "Pending")
+
+	def _assert_reopened(self, name):
+		self.assertEqual(self._approval(name).custom_vellox_approval_status, "Pending")
+		with self.assertRaisesRegex(frappe.ValidationError, "commercial approval"):
+			frappe.get_doc("Quotation", name).submit()
+
+	def test_a_negative_tax_row_counts_as_a_discount(self):
+		quote = _ops_tier_quote()
+		self._approve("Operations", quote.name)
+		doc = frappe.get_doc("Quotation", quote.name)
+		account = frappe.db.get_value(
+			"Account", {"company": doc.company, "is_group": 0, "root_type": "Liability"}
+		)
+		doc.append("taxes", {"charge_type": "Actual", "account_head": account, "description": "Promo", "tax_amount": -400})
+		doc.save(ignore_permissions=True)
+		self._assert_reopened(quote.name)
+
+	def test_changing_the_customer_reopens_approval(self):
+		from vellox_agency.tests.test_offer_builder import TEST_CUSTOMER
+
+		other = "_Test Vellox Other Customer"
+		if not frappe.db.exists("Customer", other):
+			copy = frappe.copy_doc(frappe.get_doc("Customer", TEST_CUSTOMER))
+			copy.customer_name = other
+			copy.insert(ignore_permissions=True)
+		quote = _ops_tier_quote()
+		self._approve("Operations", quote.name)
+		doc = frappe.get_doc("Quotation", quote.name)
+		doc.party_name = other
+		doc.save(ignore_permissions=True)
+		self._assert_reopened(quote.name)
+
+	def test_swapping_items_at_the_same_total_reopens_approval(self):
+		quote = _ops_tier_quote()
+		self._approve("Operations", quote.name)
+		doc = frappe.get_doc("Quotation", quote.name)
+		doc.items[0].qty = 2
+		doc.items[0].rate = 500
+		doc.save(ignore_permissions=True)
+		self._assert_reopened(quote.name)
+
+	def test_an_item_level_discount_is_not_auto_approved(self):
+		from vellox_agency.approval import required_approver_role
+
+		quote = _real_quote(0)
+		doc = frappe.get_doc("Quotation", quote.name)
+		doc.items[0].price_list_rate = 1000
+		doc.items[0].discount_percentage = 60
+		doc.items[0].rate = 400  # the form derives this from the discount
+		doc.save(ignore_permissions=True)
+		self.assertEqual(required_approver_role(doc), "Agency Manager")
+		self._assert_reopened(quote.name)

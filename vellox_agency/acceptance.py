@@ -50,8 +50,7 @@ def _ensure_acceptance_fields() -> None:
 def create_project_from_quotation(quotation: str):
 	_ensure_acceptance_fields()
 
-	# Lock the quote so two clicks at once cannot both create a project.
-	doc = frappe.get_doc("Quotation", quotation, for_update=True)
+	doc = frappe.get_doc("Quotation", quotation)
 	doc.check_permission("read")
 
 	if not set(CREATION_ROLES) & set(frappe.get_roles()):
@@ -60,8 +59,11 @@ def create_project_from_quotation(quotation: str):
 	if doc.docstatus != 1:
 		frappe.throw(_("Only a submitted Quotation can create a Project."))
 
-	if doc.custom_vellox_project and frappe.db.exists("Project", doc.custom_vellox_project):
-		return {"ok": True, "project": doc.custom_vellox_project, "existing": True}
+	# Lock the quote (after the access checks) so two clicks at once cannot both
+	# create a project; the second waits here and then sees the first one's link.
+	linked = frappe.db.get_value("Quotation", doc.name, "custom_vellox_project", for_update=True)
+	if linked and frappe.db.exists("Project", linked):
+		return {"ok": True, "project": linked, "existing": True}
 
 	customer = doc.party_name if doc.quotation_to == "Customer" else None
 

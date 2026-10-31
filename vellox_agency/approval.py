@@ -5,6 +5,9 @@ requires review can only be submitted after an authorized user approves.
 Auto-approved bands are stamped automatically.
 """
 
+import hashlib
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import flt
@@ -18,10 +21,18 @@ APPROVERS = {
 
 
 def _discount_percent(doc) -> float:
-	gross = sum(flt(row.amount) for row in (doc.get("items") or []))
+	"""Total discount against list price: item discounts, the header discount,
+	and any tax row that lowers the total."""
+	gross = sum(
+		max(flt(row.get("price_list_rate")) * flt(row.get("qty")), flt(row.amount)) for row in (doc.get("items") or [])
+	)
+	revenue = flt(doc.net_total)
+	for tax in doc.get("taxes") or []:
+		effect = -flt(tax.tax_amount) if tax.get("add_deduct_tax") == "Deduct" else flt(tax.tax_amount)
+		revenue += min(effect, 0)
 	if gross <= 0 or flt(doc.net_total) <= 0:
 		return 0.0
-	return round((gross - flt(doc.net_total)) / gross * 100, 2)
+	return round((gross - revenue) / gross * 100, 2)
 
 
 def required_approver_role(doc) -> str | None:
@@ -39,9 +50,19 @@ APPROVAL_FIELDS = ("custom_vellox_approval_status", "custom_vellox_approved_by",
 
 
 def _commercial_terms(doc) -> str:
-	"""What an approval covers: a change to any of these re-opens it."""
-	gross = sum(flt(row.amount) for row in (doc.get("items") or []))
-	return f"{flt(gross, 2)}|{flt(doc.net_total, 2)}|{flt(doc.get('custom_vellox_estimated_margin'), 2)}"
+	"""Fingerprint of what an approval covers: a change to any of these re-opens it."""
+	terms = {
+		"party": [doc.get("quotation_to"), doc.get("party_name")],
+		"currency": [doc.get("currency"), flt(doc.get("conversion_rate"), 9)],
+		"items": [
+			[row.item_code, flt(row.qty, 6), flt(row.rate, 6), flt(row.get("price_list_rate"), 6)]
+			for row in (doc.get("items") or [])
+		],
+		"totals": [flt(doc.net_total, 2), flt(doc.get("grand_total"), 2)],
+		"margin": flt(doc.get("custom_vellox_estimated_margin"), 2),
+		"discount": _discount_percent(doc),
+	}
+	return hashlib.sha256(json.dumps(terms, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def _set_approval(doc, status: str, approved_by: str | None, terms: str | None) -> None:
@@ -68,6 +89,10 @@ def stamp_approval_on_validate(doc, method=None) -> None:
 
 	terms = _commercial_terms(doc)
 	if doc.flags.vellox_approving:
+		# Totals are recalculated on save; the approver must cover the tier they produce.
+		required = required_approver_role(doc)
+		if required and not _is_approver(required):
+			frappe.throw(_("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError)
 		doc.custom_vellox_approval_terms = terms
 	elif required_approver_role(doc) is None:
 		if doc.custom_vellox_approval_status != "Approved" or doc.custom_vellox_approved_by == "auto":
@@ -90,6 +115,10 @@ def gate_submission(doc, method=None) -> None:
 		)
 
 
+def _is_approver(required: str) -> bool:
+	return bool(set(APPROVERS[required]) & set(frappe.get_roles()))
+
+
 def _approval_refusal(doc) -> tuple[str, type[Exception]] | None:
 	"""Why the session user may not approve this quotation now, or None if they may."""
 	if doc.docstatus != 0:
@@ -99,7 +128,7 @@ def _approval_refusal(doc) -> tuple[str, type[Exception]] | None:
 		return _("This quotation is within the auto-approved band."), frappe.ValidationError
 	if doc.get("custom_vellox_approval_status") == "Approved":
 		return _("This quotation is already approved."), frappe.ValidationError
-	if not set(APPROVERS[required]) & set(frappe.get_roles()):
+	if not _is_approver(required):
 		return _("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError
 	return None
 
