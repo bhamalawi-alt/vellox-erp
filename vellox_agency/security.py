@@ -165,6 +165,35 @@ JOB_ACCESS: dict[str, dict[str, str]] = {
 # projects' tasks, deliverables and updates, and only their own timesheets,
 # unless another job of theirs sees more.
 TEAM_ROLES = frozenset({"Vellox Team Member", "Agency Staff"})
+
+# Deleting (owner, 2026-11-01, [P3-141]): the Agency Manager deletes any of these;
+# everyone else only records they created that are still drafts. None means
+# managers only, even when the record is new.
+DELETE_MANAGER_ROLES = frozenset({"Agency Manager"})
+DRAFT_STATUSES: dict[str, tuple[str, ...] | None] = {
+	"Lead": ("Lead", "Open"),
+	"Opportunity": ("Open",),
+	"Task": ("Open", "Template"),
+	"Project": None,
+	"Customer": None,
+	"Contact": None,
+}
+SUBMITTABLE_DRAFTS = ("Quotation", "Timesheet")  # a draft is docstatus 0
+DELETE_GOVERNED_DOCTYPES = (*DRAFT_STATUSES, *SUBMITTABLE_DRAFTS)
+
+
+def _is_own_draft(doc, user: str) -> bool:
+	if doc.get("owner") != user:
+		return False
+	if doc.doctype in SUBMITTABLE_DRAFTS:
+		return doc.get("docstatus") == 0
+	statuses = DRAFT_STATUSES.get(doc.doctype)
+	return bool(statuses) and doc.get("status") in statuses
+
+
+def _may_delete(doc, user: str) -> bool:
+	jobs = _job_roles(user)
+	return not jobs or bool(jobs & DELETE_MANAGER_ROLES) or _is_own_draft(doc, user)
 TEAM_SCOPED_DOCTYPES = ("Project", "Project Update", "Task", "Timesheet", "Deliverable")
 
 
@@ -218,6 +247,8 @@ def job_access_permission(doc, ptype=None, user=None, **kwargs) -> bool | None:
 	if level == LINK and ptype and ptype not in LINK_RIGHTS:
 		return False
 	if doc.doctype in TEAM_SCOPED_DOCTYPES and _team_scoped(user) and not _team_can_access(doc, user):
+		return False
+	if ptype == "delete" and doc.doctype in DELETE_GOVERNED_DOCTYPES and not _may_delete(doc, user):
 		return False
 	return None
 

@@ -324,6 +324,14 @@ permission_query_conditions["File"] = ["vellox_agency.security.job_access_file_q
 # Overriding Methods
 # ------------------------------
 #
+# Exporting lists is limited by job ([P3-141]); see export_guard.
+override_whitelisted_methods = {
+	"frappe.desk.reportview.export_query": "vellox_agency.export_guard.export_query",
+	"frappe.desk.query_report.export_query": "vellox_agency.export_guard.export_report",
+	"frappe.core.doctype.data_export.exporter.export_data": "vellox_agency.export_guard.export_data",
+	"frappe.core.doctype.data_import.data_import.download_template": "vellox_agency.export_guard.download_template",
+}
+
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "vellox_agency.event.get_events"
 # }
