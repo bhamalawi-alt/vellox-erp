@@ -2,10 +2,11 @@
 Lead-to-Project specification ([P2-16]/[P2-17]).
 
 Guests can reach ONLY this endpoint. Submissions are validated, rate-limited
-per IP, deduplicated against open Leads from the last 24 hours, and stored on
+per visitor and per mailbox, merged into an existing Lead for the same email, and stored on
 standard Lead records with consent metadata.
 """
 
+import ipaddress
 import json
 from contextlib import contextmanager
 
@@ -16,8 +17,12 @@ from frappe.utils import cint, validate_email_address
 from vellox_agency.setup.commercial import PRACTICES
 
 MAX_PER_HOUR = 5
+# Submissions per mailbox per day: each new Lead sends that mailbox an
+# acknowledgement, so this caps the mail anyone can make Vellox send to one inbox.
+MAX_PER_ADDRESS = 3
 DEDUP_WINDOW_HOURS = 24
 RATE_LIMIT_KEY = "vellox_intake"
+GMAIL_DOMAINS = ("gmail.com", "googlemail.com")
 
 
 def _client_ip() -> str:
@@ -25,33 +30,72 @@ def _client_ip() -> str:
 
 	Frappe reads X-Forwarded-For first; bench's nginx config overwrites that
 	header with the real connection address, so a visitor cannot pick their own
-	bucket. Behind a CDN or second proxy, nginx needs real_ip settings for the
-	same guarantee. ([P3-145]: this used to read frappe.local.client_ip, which
-	Frappe never sets, so every visitor shared one limit.)
+	bucket. Behind a CDN or second proxy, nginx needs real_ip settings (trusting
+	only the CDN's ranges) for the same guarantee. ([P3-145]: this used to read
+	frappe.local.client_ip, which Frappe never sets, so every visitor shared one limit.)
 	"""
 	return getattr(frappe.local, "request_ip", None) or "unknown"
 
 
-def _rate_limit_key(ip: str | None = None):
-	cache = frappe.cache()
-	return cache, cache.make_key(f"{RATE_LIMIT_KEY}:{ip or _client_ip()}")
+def _visitor(ip: str) -> str:
+	"""One bucket per IPv4 address, or per IPv6 /64: one connection gets a whole
+	/64, so counting single IPv6 addresses would let anyone rotate past the limit."""
+	try:
+		address = ipaddress.ip_address(ip)
+	except ValueError:
+		return ip
+	if address.version == 6:
+		if address.ipv4_mapped:
+			return str(address.ipv4_mapped)
+		return str(ipaddress.ip_network(f"{address}/64", strict=False))
+	return str(address)
+
+
+def _mailbox(email: str) -> str:
+	"""The inbox an address delivers to: no +tag, and Gmail ignores dots."""
+	local, _, domain = email.strip().lower().rpartition("@")
+	local = local.split("+", 1)[0]
+	if domain in GMAIL_DOMAINS:
+		local, domain = local.replace(".", ""), "gmail.com"
+	return f"{local}@{domain}"
+
+
+def _ip_key(ip: str | None = None) -> str:
+	return frappe.cache().make_key(f"{RATE_LIMIT_KEY}:ip:{_visitor(ip or _client_ip())}")
+
+
+def _mailbox_key(email: str) -> str:
+	return frappe.cache().make_key(f"{RATE_LIMIT_KEY}:mailbox:{_mailbox(email)}")
 
 
 def reset_rate_limit(ip: str | None = None) -> None:
-	cache, key = _rate_limit_key(ip)
-	cache.delete_value(key, make_keys=False)
+	frappe.cache().delete(_ip_key(ip))
+
+
+def reset_all_rate_limits() -> None:
+	frappe.cache().delete_keys(RATE_LIMIT_KEY)
+
+
+def _hit(key: str, limit: int, seconds: int, message: str) -> None:
+	cache = frappe.cache()
+	# Start the window before counting (as frappe.rate_limiter does), so a crash
+	# between the two steps can never leave a counter without an expiry.
+	cache.set(key, 0, ex=seconds, nx=True)
+	if cint(cache.incr(key)) > limit:
+		frappe.throw(message, frappe.exceptions.TooManyRequestsError)
 
 
 def _rate_limit() -> None:
-	cache, key = _rate_limit_key()
-	count = cache.incr(key)
-	if count == 1:
-		cache.expire(key, 3600)
-	if cint(count) > MAX_PER_HOUR:
-		frappe.throw(
-			_("Too many inquiries from your network. Please try again later."),
-			frappe.exceptions.TooManyRequestsError,
-		)
+	_hit(_ip_key(), MAX_PER_HOUR, 3600, _("Too many inquiries from your network. Please try again later."))
+
+
+def _limit_mailbox(email: str) -> None:
+	_hit(
+		_mailbox_key(email),
+		MAX_PER_ADDRESS,
+		24 * 3600,
+		_("Too many inquiries for this email address today. Please try again tomorrow."),
+	)
 
 
 def _validate_payload(full_name, email, services, message, consent):
@@ -74,16 +118,15 @@ def _validate_payload(full_name, email, services, message, consent):
 
 
 def _find_recent_duplicate(email_id: str):
-	window = frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=-DEDUP_WINDOW_HOURS)
-	return frappe.db.get_value(
-		"Lead",
-		filters={
-			"email_id": email_id,
-			"creation": (">=", window),
-		},
-		fieldname="name",
-		order_by="creation desc",
-	)
+	"""The Lead a new inquiry joins instead of creating another.
+
+	When ERPNext allows only one Lead per email (the default), a later inquiry
+	joins that Lead whatever its age; inserting would fail and lose it.
+	"""
+	filters = {"email_id": email_id}
+	if frappe.db.get_single_value("CRM Settings", "allow_lead_duplication_based_on_emails"):
+		filters["creation"] = (">=", frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=-DEDUP_WINDOW_HOURS))
+	return frappe.db.get_value("Lead", filters=filters, fieldname="name", order_by="creation desc")
 
 
 @contextmanager
@@ -125,6 +168,7 @@ def submit_inquiry(**kwargs):
 
 	_rate_limit()
 	_validate_payload(full_name, email, services, message, kwargs.get("consent"))
+	_limit_mailbox(email)
 
 	duplicate = _find_recent_duplicate(email)
 	if duplicate:
