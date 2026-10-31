@@ -9,7 +9,6 @@ import frappe
 
 from vellox_agency.delivery_setup import REROUTED_NOTIFICATIONS
 
-
 RECIPIENT_FIELDS = ("receiver_by_document_field", "receiver_by_role", "condition", "cc", "bcc")
 
 
