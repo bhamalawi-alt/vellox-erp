@@ -248,7 +248,8 @@ ESTIMATE_PERMLEVEL = 2
 QUOTATION_ESTIMATE_FIELDS = [
 	{
 		"fieldname": "custom_vellox_estimate_hours",
-		"label": "Estimate Hours (role/hours/rate JSON)",
+		"label": "Estimate Hours (role/hours JSON)",
+		"description": 'Rows like [{"role": "Developer", "hours": 40}]. Each role is priced at the cost rate Finance sets on its Activity Type.',
 		"fieldtype": "Small Text",
 		"insert_after": "custom_vellox_technical_proposal",
 		"permlevel": ESTIMATE_PERMLEVEL,
@@ -268,7 +269,9 @@ QUOTATION_ESTIMATE_FIELDS = [
 		"fieldtype": "Percent",
 		"insert_after": "custom_vellox_vendor_cost",
 		"read_only": 1,
-		"permlevel": ESTIMATE_PERMLEVEL,
+		# Exact margin with visible hours would reveal Finance's rates: Finance and
+		# the Agency Manager only; others see the band ([P3-143], estimate.py).
+		"permlevel": 3,
 		"print_hide": 1,  # internal rates never print for a customer
 	},
 ]

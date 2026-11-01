@@ -20,6 +20,7 @@ def _quote(discount=0, margin=50.0, status="Pending", docstatus=0, project=None)
 		custom_vellox_estimated_margin=margin,
 		custom_vellox_approval_status=status,
 		custom_vellox_project=project,
+		custom_vellox_vendor_cost=1,  # an estimate exists, so the bands apply ([P3-143])
 	)
 
 
@@ -125,15 +126,24 @@ class TestQuotationActions(_JobUsersCase):
 		with self.set_user(self.users["Agency Manager"]):
 			doc = frappe.get_doc("Quotation", quote.name)
 			doc.run_method("onload")
-			# 0% discount and no estimate costs: the auto band, nothing to approve.
+			# 0% discount but no estimate: the margin is unknown, so an approver must look ([P3-143]).
 			self.assertEqual(
 				doc.get_onload().get("vellox_actions"),
-				{"can_approve": False, "can_create_project": False, "project": None},
+				{"can_approve": True, "can_create_project": False, "project": None},
 			)
 
 
-def _real_quote(discount, labor_cost=0):
-	"""A saved draft quote of 1000 with `discount`% off and `labor_cost` estimated."""
+ESTIMATE_ROLE = "_Test Vellox Unit Role"  # a role whose Finance rate is 1 per hour
+
+
+def _real_quote(discount, labor_cost=1):
+	"""A saved draft quote of 1000 with `discount`% off and `labor_cost` estimated.
+
+	Every quote carries an estimate: one without needs approval ([P3-143]).
+	"""
+	from vellox_agency.tests.test_estimate import role_rate
+
+	role_rate(ESTIMATE_ROLE, 1)
 	from erpnext.selling.doctype.quotation.test_quotation import make_quotation
 	from erpnext.stock.doctype.item.test_item import make_item
 
@@ -144,12 +154,13 @@ def _real_quote(discount, labor_cost=0):
 		make_item(item, {"is_stock_item": 0, "stock_uom": "Unit"})
 	quote = make_quotation(
 		item=item, party_name=TEST_CUSTOMER, selling_price_list=TEST_PRICE_LIST, warehouse="", qty=1, rate=1000,
+		currency="USD",  # the test company's currency, so the margin compares like with like
 		do_not_save=True,
 	)
 	quote.apply_discount_on = "Net Total"
 	quote.additional_discount_percentage = discount
 	if labor_cost:
-		quote.custom_vellox_estimate_hours = json.dumps([{"role": "Dev", "hours": 1, "rate": labor_cost}])
+		quote.custom_vellox_estimate_hours = json.dumps([{"role": ESTIMATE_ROLE, "hours": labor_cost}])
 	return quote.insert(ignore_permissions=True)
 
 

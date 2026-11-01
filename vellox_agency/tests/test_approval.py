@@ -13,6 +13,7 @@ def _doc(net_total=100000, gross=100000, margin=50.0):
 		custom_vellox_estimated_margin=margin,
 		custom_vellox_approval_status="Pending",
 		custom_vellox_approved_by=None,
+		custom_vellox_vendor_cost=1,  # an estimate exists; without one the auto band is closed ([P3-143])
 	)
 
 
