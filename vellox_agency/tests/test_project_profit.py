@@ -132,7 +132,7 @@ class _ProfitCase(FrappeTestCase):
 			}
 		).insert(ignore_permissions=True)
 
-	def _time(self, role, project, hours, day):
+	def _time(self, role, project, hours, day, billable_tick=1):
 		employee, _user_id = self.people[role]
 		ts = frappe.get_doc(
 			{
@@ -145,7 +145,7 @@ class _ProfitCase(FrappeTestCase):
 						"project": project,
 						"from_time": f"{day} 09:00:00",
 						"hours": hours,
-						"is_billable": 1,
+						"is_billable": billable_tick,
 						"costing_rate": self.rates[role],
 					}
 				],
@@ -209,21 +209,22 @@ class TestWorkedExample(_ProfitCase):
 		from vellox_agency.profit import project_profit
 
 		project = self._project(self._quote()).name
-		for status in ("Approved", "Rejected"):
-			amendment = self._quote(3000, estimate=[{"role": "Developer", "hours": 40, "rate": 30}], vendor=0)
+		# Owner, 2026-11-01 ([P4-35]): Approved and Implemented count; Closed may mean withdrawn.
+		for status in ("Approved", "Implemented", "Rejected", "Closed"):
+			amendment = self._quote(1500, estimate=[{"role": "Developer", "hours": 20, "rate": 30}], vendor=0)
 			request = frappe.get_doc(
 				{
 					"doctype": "Vellox Change Request",
 					"project": project,
 					"title": f"Extra pages {status}",
-					"price_impact": 3000,
+					"price_impact": 1500,
 					"amendment_quotation": amendment.name,
 				}
 			).insert(ignore_permissions=True)
 			request.db_set("status", status)
 		p = project_profit(project)
-		self.assertEqual(p.contract_value, 15000)  # the rejected one is not counted
-		self.assertEqual(p.budget, 7800 + 1200)
+		self.assertEqual(p.contract_value, 15000)  # 12,000 + two counted amendments of 1,500
+		self.assertEqual(p.budget, 7800 + 2 * 600)
 
 	def test_quotes_in_another_currency_use_the_rate_on_their_date(self):
 		from vellox_agency.profit import project_profit, projects_profit
@@ -380,6 +381,33 @@ class TestProfitOnProjects(_ProfitCase):
 			"vellox_agency.profit.refresh_project_profit", frappe.get_hooks("scheduler_events")["daily"]
 		)
 
+	def test_only_pms_and_operations_change_remaining_hours(self):
+		# Owner, 2026-11-01 ([P4-35]): team members see it; it feeds the forecast.
+		from vellox_agency.profit import REMAINING_HOURS_PERMLEVEL
+
+		meta = frappe.get_meta("Task")
+		self.assertEqual(meta.get_field("custom_vellox_remaining_hours").permlevel, REMAINING_HOURS_PERMLEVEL)
+		team_user = _user("pp-team@example.com", JOB_PROFILES["Team Member"])
+		for user in (PM_USER, OPS_USER):
+			with self.subTest(user=user):
+				self.assertIn(REMAINING_HOURS_PERMLEVEL, meta.get_permlevel_access("write", user=user))
+		self.assertIn(REMAINING_HOURS_PERMLEVEL, meta.get_permlevel_access("read", user=team_user))
+		self.assertNotIn(REMAINING_HOURS_PERMLEVEL, meta.get_permlevel_access("write", user=team_user))
+
+	def test_a_team_members_save_keeps_the_pms_remaining_hours(self):
+		team_user = _user("pp-team@example.com", JOB_PROFILES["Team Member"])
+		project = frappe.get_doc("Project", self._project(self._quote()).name)
+		project.append("users", {"user": team_user})
+		project.save(ignore_permissions=True)
+		task = self._task(project.name, "Developer", 12)
+		with self.set_user(team_user):
+			doc = frappe.get_doc("Task", task.name)
+			doc.custom_vellox_remaining_hours = 1
+			doc.description = "Working on it"
+			doc.save()
+		self.assertEqual(frappe.db.get_value("Task", task.name, "custom_vellox_remaining_hours"), 12)
+		self.assertEqual(frappe.db.get_value("Task", task.name, "description"), "Working on it")
+
 	def test_remaining_hours_live_on_tasks(self):
 		self.assertEqual(
 			frappe.get_meta("Task").get_field("custom_vellox_remaining_hours").fieldtype, "Float"
@@ -454,3 +482,21 @@ class TestUtilization(_ProfitCase):
 		week = week_capacity(employee, "2026-11-09")
 		self.assertEqual(week["billable_hours"], 16)
 		self.assertAlmostEqual(week["utilization"], 16 / 32 * 100, places=2)
+
+	def test_billable_means_client_projects_not_the_tick(self):
+		# Owner, 2026-11-01 ([P4-35]): hours on any project not marked Internal are
+		# billable, ticked or not; internal projects and rows without a project are not.
+		from vellox_agency.capacity import week_capacity
+
+		employee, _user_id = self.people["Developer"]
+		client = self._project(self._quote()).name
+		internal = self._project(self._quote())
+		internal.db_set("custom_vellox_internal", 1)
+		self._time("Developer", client, 6, "2026-11-09", billable_tick=0)
+		self._time("Developer", internal.name, 4, "2026-11-10")
+		self._time("Developer", None, 2, "2026-11-12")
+		week = week_capacity(employee, "2026-11-09")
+		self.assertEqual(week["billable_hours"], 6)
+
+	def test_projects_carry_an_internal_checkbox(self):
+		self.assertEqual(frappe.get_meta("Project").get_field("custom_vellox_internal").fieldtype, "Check")

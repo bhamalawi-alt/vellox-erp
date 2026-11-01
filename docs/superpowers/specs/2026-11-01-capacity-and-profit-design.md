@@ -210,3 +210,20 @@ where it applies.
    25 % margin; red below 10 % margin or EAC over contract value).
 2. **Money for PMs and Operations**: hidden. They see hours, budget used %,
    margin drift in points and the health colour, never amounts or rates.
+
+### Answers after [P4-33] (owner, 2026-11-01, built in [P4-35])
+
+3. **Billable hours**: hours on any project not marked **Internal Project**
+   (a checkbox on Project) are billable. ERPNext's *Is Billable* tick on the
+   timesheet row is not used, so staff do not need to remember it. Timesheet
+   rows without a project are not billable.
+4. **Change requests that count**: only Approved and Implemented requests add
+   their amendment quote to contract value and budget. Closed requests do not
+   count, because Closed may mean withdrawn.
+5. **Remaining Hours on tasks**: everyone who sees the task reads it; only
+   Project Managers, Operations and the Agency Manager change it, because it
+   feeds the forecast.
+6. **Accepted limit**: Project Managers can see quotes (net total and the
+   estimate panel), so with budget used % and margin drift they could work out
+   cost to date and the forecast cost by hand. This follows from the access in
+   section 7 and is accepted; they never see the amounts directly.

@@ -25,8 +25,9 @@ template steps -> hours per role (est_days x 8) x win probability, spread
 evenly over the template's duration from the expected close date. It is a
 separate line by role and never counts as overbooking.
 
-Utilization (section 4, [P4-33]): billable hours = submitted timesheet rows
-marked billable; utilization % = billable hours / available hours x 100.
+Utilization (section 4, [P4-33]): billable hours = submitted timesheet hours
+on projects not marked Internal ([P4-35]); utilization % = billable hours /
+available hours x 100.
 
 Weeks run Monday to Sunday. Each person's calendar is read once per request,
 however many weeks are asked for.
@@ -166,19 +167,26 @@ def _booked_in_week(bookings: list, week: list, workdays: set) -> float:
 
 
 def _billable_by_date(employee: str, start, end) -> dict:
-	"""Submitted billable timesheet hours per day, by the row's start time."""
+	"""Submitted hours on client projects per day, by the row's start time.
+
+	Billable = on a project not marked Internal (owner, 2026-11-01, [P4-35]);
+	ERPNext's Is Billable tick is not used, so staff need not remember it.
+	"""
 	ts = frappe.qb.DocType("Timesheet")
 	row = frappe.qb.DocType("Timesheet Detail")
+	project = frappe.qb.DocType("Project")
 	day = Date(row.from_time)
 	sums = (
 		frappe.qb.from_(row)
 		.join(ts)
 		.on(row.parent == ts.name)
+		.join(project)
+		.on(row.project == project.name)
 		.select(day, Sum(row.hours))
 		.where(
 			(ts.employee == employee)
 			& (ts.docstatus == 1)
-			& (row.is_billable == 1)
+			& (project.custom_vellox_internal == 0)
 			& (row.from_time >= getdate(start))
 			& (row.from_time < add_days(end, 1))
 		)
