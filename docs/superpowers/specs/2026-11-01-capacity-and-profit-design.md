@@ -23,7 +23,7 @@ Owner decisions (2026-11-01):
 | D4 | Utilization target | **75 %** billable, the same for everyone unless changed per person |
 | D5 | Deals not yet won | Shown as a **separate "likely" line**, never mixed into confirmed numbers |
 | D6 | Office overhead | **Left out** of project profit (contribution margin) |
-| D7 | Currency | **USD**, each amount converted at the exchange rate **of its own date** (the book currency itself stays open on [P5A-103]) |
+| D7 | Currency | **USD**, each amount converted at the exchange rate **of its own date** (the books are kept in LYD, decided on [P5A-103]; see 2026-11-01-books-and-fx-policy.md) |
 | D8 | Forecasting overruns | **Cost so far + PM's estimate of remaining hours**, updated weekly |
 
 ## 2. Records (sources of truth)
