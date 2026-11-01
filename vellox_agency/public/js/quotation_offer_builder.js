@@ -95,7 +95,8 @@ async function approveQuotation(frm) {
 	}
 	const response = await callServer({
 		method: "vellox_agency.approval.approve_quotation",
-		args: { quotation: frm.doc.name },
+		// The server refuses if the quote changed since this version was loaded ([P3-144]).
+		args: { quotation: frm.doc.name, seen: frm.doc.modified },
 		freeze: true,
 		freeze_message: __("Approving"),
 	});

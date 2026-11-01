@@ -10,7 +10,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, get_datetime
 
 # Who may approve each tier (lead-to-project design, section 5): Operations
 # approves only its own band; anything beyond it needs the Agency Manager.
@@ -71,6 +71,36 @@ def _set_approval(doc, status: str, approved_by: str | None, terms: str | None) 
 	doc.custom_vellox_approval_terms = terms
 
 
+def _stamp_terms_setter(doc, terms: str) -> None:
+	"""Remember everyone who changed the commercial terms; a value sent by a client is dropped."""
+	before = None if doc.is_new() else doc.get_doc_before_save()
+	setters = _terms_setters(before) if before else []
+	if before is None or _commercial_terms(before) != terms:
+		setters = [*setters, frappe.session.user] if frappe.session.user not in setters else setters
+	doc.custom_vellox_terms_set_by = "\n".join(setters)
+
+
+def _terms_setters(doc) -> list[str]:
+	return [user for user in (doc.get("custom_vellox_terms_set_by") or "").splitlines() if user]
+
+
+def _is_maker(doc) -> bool:
+	"""The quote's creator, or anyone who changed its terms (owner, 2026-11-01, [P3-144]).
+
+	Everyone is kept, not only the last, so a second person's small change does
+	not let the first approve their own discount.
+	"""
+	user = frappe.session.user
+	return user == doc.get("owner") or user in _terms_setters(doc)
+
+
+def _maker_message(required: str) -> str:
+	others = [role for role in APPROVERS[required] if role != "System Manager"]
+	return _("You made this quotation or set its terms, so another {0} must approve it.").format(
+		_(" or ").join(frappe.bold(role) for role in others)
+	)
+
+
 def stamp_approval_on_validate(doc, method=None) -> None:
 	"""Keep the approval fields honest on every save.
 
@@ -88,11 +118,14 @@ def stamp_approval_on_validate(doc, method=None) -> None:
 			_set_approval(doc, "Pending", None, None)
 
 	terms = _commercial_terms(doc)
+	_stamp_terms_setter(doc, terms)
 	if doc.flags.vellox_approving:
 		# Totals are recalculated on save; the approver must cover the tier they produce.
 		required = required_approver_role(doc)
 		if required and not _is_approver(required):
 			frappe.throw(_("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError)
+		if required and _is_maker(doc):
+			frappe.throw(_maker_message(required), frappe.PermissionError, title=_("Cannot approve own quotation"))
 		doc.custom_vellox_approval_terms = terms
 	elif required_approver_role(doc) is None:
 		if doc.custom_vellox_approval_status != "Approved" or doc.custom_vellox_approved_by == "auto":
@@ -130,7 +163,18 @@ def _approval_refusal(doc) -> tuple[str, type[Exception]] | None:
 		return _("This quotation is already approved."), frappe.ValidationError
 	if not _is_approver(required):
 		return _("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError
+	if _is_maker(doc):
+		return _maker_message(required), frappe.PermissionError
 	return None
+
+
+def _is_version_seen(doc, seen) -> bool:
+	if not isinstance(seen, str) or not seen:
+		return False
+	try:
+		return get_datetime(seen) == get_datetime(doc.modified)
+	except (ValueError, TypeError):
+		return False
 
 
 def can_approve(doc) -> bool:
@@ -165,12 +209,26 @@ def add_quotation_actions(doc, method=None) -> None:
 
 
 @frappe.whitelist(methods=["POST"])
-def approve_quotation(quotation: str):
+def approve_quotation(quotation: str, seen: str | None = None):
+	"""Approve the quotation as the approver last saw it.
+
+	`seen` is the `modified` time of the version on the approver's screen; a
+	quote changed since then is refused, so nobody approves terms they have not
+	read ([P3-144]).
+	"""
 	doc = frappe.get_doc("Quotation", quotation, for_update=True)
 	doc.check_permission("submit")
 	if refusal := _approval_refusal(doc):
 		message, exc = refusal
 		frappe.throw(message, exc)
+	if not _is_version_seen(doc, seen):
+		frappe.throw(
+			_("{0} changed this quotation {1}, after you opened it. Reload it and review the changes before approving.").format(
+				frappe.bold(frappe.utils.get_fullname(doc.modified_by)), frappe.utils.pretty_date(doc.modified)
+			),
+			frappe.ValidationError,
+			title=_("Quotation changed"),
+		)
 	doc.custom_vellox_approval_status = "Approved"
 	doc.custom_vellox_approved_by = frappe.session.user
 	doc.flags.vellox_approving = True

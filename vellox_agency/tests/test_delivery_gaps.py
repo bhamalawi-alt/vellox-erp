@@ -204,7 +204,7 @@ class TestSalesAlerts(_GapsCase):
 		with self.set_user(SALES):
 			quote = _ops_tier_quote()
 		with self.set_user(OPS):
-			approve_quotation(quote.name)
+			approve_quotation(quote.name, seen=str(frappe.db.get_value("Quotation", quote.name, "modified")))
 		approved = [r for m, r in _queued(quote) if "approved" in m.lower()]
 		self.assertEqual(approved, [{SALES}])
 
