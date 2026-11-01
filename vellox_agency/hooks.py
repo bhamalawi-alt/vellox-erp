@@ -69,6 +69,9 @@ doc_events["Task"] = {
 	"after_delete": "vellox_agency.project_phase.sync_project_phase",
 }
 
+# Customer billing figures: Finance and the Agency Manager only ([P3-142]).
+doc_events["Customer"] = {"onload": "vellox_agency.security.hide_customer_money"}
+
 doc_events["Lead"] = {
 	"before_insert": "vellox_agency.crm_setup.stamp_first_response_due",
 }
