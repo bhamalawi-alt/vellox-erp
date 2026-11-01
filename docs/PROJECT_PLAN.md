@@ -91,7 +91,7 @@ Its phases:
 |---|---|
 | P0–P2 | Foundation, CI, security baseline, lead-to-project flow (done) |
 | P3 | Delivery, change control, access by job, scheduled jobs (in progress) |
-| P4 | Team capacity, cost rates and project profit (planning) |
+| P4 | Team capacity, cost rates, bookings and project profit (built; API money gaps open in P4-34) |
 | P5 | Company books, currencies, billing and retainers |
 | P6+ | Client portal, integrations, go-live |
 

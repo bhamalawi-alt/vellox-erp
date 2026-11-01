@@ -35,7 +35,11 @@ def execute(filters=None):
 		fields=["name", "employee_name", "designation"],
 		order_by="employee_name",
 	):
-		base = {"employee": person.name, "employee_name": person.employee_name, "designation": person.designation}
+		base = {
+			"employee": person.name,
+			"employee_name": person.employee_name,
+			"designation": person.designation,
+		}
 		try:
 			weeks_rows = weekly_capacity(person.name, from_date, weeks)
 		except frappe.ValidationError as error:
@@ -46,14 +50,21 @@ def execute(filters=None):
 	if not team_scoped:
 		for role, role_weeks in sorted(likely_demand(from_date, weeks).items()):
 			rows.extend(
-				{"employee_name": _("Likely: {0}").format(role), "designation": role, **week} for week in role_weeks
+				{"employee_name": _("Likely: {0}").format(role), "designation": role, **week}
+				for week in role_weeks
 			)
 	return _columns(), rows
 
 
 def _columns():
 	return [
-		{"fieldname": "employee", "label": _("Employee"), "fieldtype": "Link", "options": "Employee", "width": 120},
+		{
+			"fieldname": "employee",
+			"label": _("Employee"),
+			"fieldtype": "Link",
+			"options": "Employee",
+			"width": 120,
+		},
 		{"fieldname": "employee_name", "label": _("Name"), "fieldtype": "Data", "width": 180},
 		{"fieldname": "designation", "label": _("Role"), "fieldtype": "Data", "width": 130},
 		{"fieldname": "week_start", "label": _("Week of"), "fieldtype": "Date", "width": 100},
@@ -62,6 +73,8 @@ def _columns():
 		{"fieldname": "confirmed_hours", "label": _("Booked h"), "fieldtype": "Float", "width": 90},
 		{"fieldname": "free_hours", "label": _("Free h"), "fieldtype": "Float", "width": 80},
 		{"fieldname": "overbooked_hours", "label": _("Overbooked h"), "fieldtype": "Float", "width": 110},
+		{"fieldname": "billable_hours", "label": _("Billable h"), "fieldtype": "Float", "width": 90},
+		{"fieldname": "utilization", "label": _("Utilization %"), "fieldtype": "Percent", "width": 100},
 		{"fieldname": "likely_hours", "label": _("Likely h"), "fieldtype": "Float", "width": 90},
 		{"fieldname": "note", "label": _("Note"), "fieldtype": "Data", "width": 260},
 	]

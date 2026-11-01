@@ -58,6 +58,7 @@ scheduler_events = {
 	"daily": [
 		"vellox_agency.lead_followup.send_late_reply_digest",
 		"vellox_agency.scheduled.send_stale_opportunity_reminders",
+		"vellox_agency.profit.refresh_project_profit",
 	],
 }
 
