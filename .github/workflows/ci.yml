@@ -66,10 +66,11 @@ jobs:
           bench init frappe-bench --frappe-branch version-15 --python python3.11
           echo "$(pwd)/frappe-bench" >> "$GITHUB_PATH"
 
-      - name: Fetch ERPNext and install this app from source
+      - name: Fetch ERPNext and Frappe HR, and install this app from source
         working-directory: frappe-bench
         run: |
           bench get-app erpnext --branch version-15
+          bench get-app hrms --branch version-15
           bench get-app "$GITHUB_WORKSPACE"
 
       # Local equivalent: the bench redis instances started alongside `bench start`
@@ -88,6 +89,7 @@ jobs:
             --admin-password admin \
             --db-name vellox_ci \
             --install-app erpnext \
+            --install-app hrms \
             --install-app vellox_agency
           bench --site ci.localhost set-config allow_tests true
 

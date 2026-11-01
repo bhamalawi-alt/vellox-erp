@@ -68,7 +68,8 @@ use it free.
 | `Agency Invoice`, `Invoice Line`, `Expense` | **Retired**, new records blocked | Sales Invoice; Expense Claim or Purchase Invoice |
 | `Agency Campaign`, `Ad Platform Account`, `Media Spend`, `Placement` | **Prototype, not in use**; deferred until campaigns are confirmed as a paid service | — |
 | `Production Job`, `Production Task`, `Production Asset`, `Revision`, `Approval Request` | **Prototype, not in use**; content delivery runs on `Deliverable` | Deliverable |
-| `Capacity Plan`, `Skill`, `Skill Employee` | **Prototype, not in use**; replaced by the capacity plan card [P4-29] | Employee (HRMS), planned |
+| `Capacity Plan` | **Prototype, not in use**; replaced by the capacity plan ([P4-29]) | Employee (HRMS), planned |
+| `Skill`, `Skill Employee` | **Removed** in [P4-102]; Frappe HR owns `Skill` | Skill + Employee Skill Map (HRMS) |
 | Reports `Agency KPI`, `Agency Utilization`, `Budget vs Actual`, `Invoice Register`, `Production Pipeline` | **Disabled**: they read the retired or prototype DocTypes | New reports planned per phase |
 
 Blocking and data handling for retired ledgers: [docs/migrations/deprecation-map.md](migrations/deprecation-map.md).

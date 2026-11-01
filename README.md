@@ -42,14 +42,15 @@ They are **not** part of the product; see [docs/PROJECT_PLAN.md](docs/PROJECT_PL
   `Agency Invoice`, `Expense`, `Retainer`. The mapping is in
   [docs/migrations/deprecation-map.md](docs/migrations/deprecation-map.md).
 - **Prototype, never built out** (no business logic, not on the workspace):
-  campaigns and media buying, content production, capacity plans and skills.
+  campaigns and media buying, content production, capacity plans. (The
+  prototype skills DocTypes were removed in [P4-102]; Frappe HR's Skill replaces them.)
 - **Disabled reports**: `Agency KPI`, `Agency Utilization`, `Budget vs Actual`,
   `Invoice Register`, `Production Pipeline` read the retired or prototype
   DocTypes and are turned off.
 
 ## Tech stack
 
-- **Frappe** v15 / **ERPNext** v15, installed as standard apps
+- **Frappe** v15 / **ERPNext** v15 / **Frappe HR** (hrms) v15, installed as standard apps
 - Python 3.11, Node 20, MariaDB 10.6, Redis
 - MIT License
 
@@ -59,8 +60,9 @@ They are **not** part of the product; see [docs/PROJECT_PLAN.md](docs/PROJECT_PL
 |---|---|---|
 | Frappe | `>=15.118.0,<16` | 15.125.0 |
 | ERPNext | `>=15.119.1,<16` | 15.124.3 |
+| Frappe HR (hrms) | `>=15.64.0,<16` | 15.64.7 |
 
-Frappe/ERPNext **v16 is out of scope.** A compatibility gate runs before every
+Frappe/ERPNext/Frappe HR **v16 is out of scope.** A compatibility gate runs before every
 migration: unsupported combinations fail with an actionable message instead of
 producing a broken site.
 
@@ -80,10 +82,11 @@ This repository root *is* the installable Frappe app (`vellox_agency`).
 bench init frappe-bench --frappe-branch version-15 --python python3.11
 cd frappe-bench
 
-# 2. Add ERPNext and this app
+# 2. Add ERPNext, Frappe HR and this app
 bench get-app erpnext --branch version-15
+bench get-app hrms --branch version-15
 bench get-app https://github.com/bhamalawi-alt/vellox-erp
-bench new-site vellox.localhost --install-app erpnext --install-app vellox_agency
+bench new-site vellox.localhost --install-app erpnext --install-app hrms --install-app vellox_agency
 
 # 3. Apply the Vellox setup (roles, fields, notifications, templates)
 bench --site vellox.localhost migrate
@@ -94,6 +97,17 @@ bench start
 
 Step 3 matters: install skips most of the Vellox setup, which runs after every
 migrate (`vellox_agency.security.apply_baseline`).
+
+**Upgrading a site created before Frappe HR was required** ([P4-102]): fetch
+hrms, migrate first, then install it. The migrate removes the app's old
+prototype `Skill` DocTypes, so Frappe HR's own `Skill` can take their place.
+
+```bash
+bench get-app hrms --branch version-15
+bench --site vellox.localhost migrate
+bench --site vellox.localhost install-app hrms
+bench --site vellox.localhost migrate
+```
 
 ### Local development recipe
 
@@ -110,7 +124,7 @@ docker run -d --name vellox-mariadb -p 127.0.0.1:3306:3306 \
   development site, because some tests change shared settings:
 
   ```bash
-  bench new-site vellox-test.localhost --install-app erpnext --install-app vellox_agency
+  bench new-site vellox-test.localhost --install-app erpnext --install-app hrms --install-app vellox_agency
   bench --site vellox-test.localhost set-config allow_tests true
   bench --site vellox-test.localhost migrate
   bench --site vellox-test.localhost run-tests --app vellox_agency

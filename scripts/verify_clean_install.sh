@@ -57,9 +57,12 @@ done
 sleep 2
 cd "$BENCH_DIR"
 
-echo "== 2/6 fetch erpnext, then bench get-app $REPO_URL ${BRANCH:+(branch $BRANCH)} =="
+echo "== 2/6 fetch erpnext and hrms, then bench get-app $REPO_URL ${BRANCH:+(branch $BRANCH)} =="
 if [[ ! -d "$BENCH_DIR/apps/erpnext" ]]; then
 	"$BENCH" get-app erpnext --branch version-15 >/dev/null
+fi
+if [[ ! -d "$BENCH_DIR/apps/hrms" ]]; then
+	"$BENCH" get-app hrms --branch version-15 >/dev/null
 fi
 REPO_NAME="$(basename "$REPO_URL")"
 REPO_NAME="${REPO_NAME%.git}"
@@ -68,7 +71,7 @@ REPO_NAME="${REPO_NAME%.git}"
 rm -rf "$BENCH_DIR/apps/$REPO_NAME" "$BENCH_DIR/apps/vellox_agency"
 "$BENCH" get-app "$REPO_URL" "${GET_APP_ARGS[@]+"${GET_APP_ARGS[@]}"}" >/dev/null
 
-echo "== 3/6 fresh site $SITE with erpnext + vellox_agency =="
+echo "== 3/6 fresh site $SITE with erpnext + hrms + vellox_agency =="
 # Clear both halves of any previous run: site dir AND database/user.
 rm -rf "$BENCH_DIR/sites/$SITE"
 mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -h127.0.0.1 -e \
@@ -78,6 +81,7 @@ mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -h127.0.0.1 -e \
 	--admin-password "$ADMIN_PASSWORD" \
 	--db-name vellox_ci_install \
 	--install-app erpnext \
+	--install-app hrms \
 	--install-app vellox_agency | tail -1
 
 echo "== 4/6 migrate =="

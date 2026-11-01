@@ -1,9 +1,10 @@
 """Runtime compatibility gate for the vellox_agency app.
 
-Declares the supported Frappe/ERPNext v15 range, verified against the
-delivery benches (Frappe 15.118.0 / ERPNext 15.119.3; ERPNext 15.119.1
-was verified during the 2026-08-14 audit). Frappe/ERPNext v16 is out of
-scope for this release.
+Declares the supported Frappe / ERPNext / Frappe HR (hrms) v15 ranges, verified
+against the delivery benches (TESTED_VERSIONS; ERPNext 15.119.1 was verified
+during the 2026-08-14 audit). Frappe HR is required from [P4-102]: staff,
+holidays and leave live there (capacity plan, P4-29). v16 is out of scope for
+this release.
 """
 
 import frappe
@@ -13,8 +14,9 @@ from packaging.version import Version
 
 FRAPPE_SUPPORTED = ">=15.118.0,<16"
 ERPNEXT_SUPPORTED = ">=15.119.1,<16"
+HRMS_SUPPORTED = ">=15.64.0,<16"
 
-TESTED_VERSIONS = {"frappe": "15.125.0", "erpnext": "15.124.3"}
+TESTED_VERSIONS = {"frappe": "15.125.0", "erpnext": "15.124.3", "hrms": "15.64.7"}
 
 _installed_versions: dict[str, str] = {}
 
@@ -42,7 +44,7 @@ def _check(app: str, specifier: str) -> None:
 		raise ValidationError(
 			f"{app} {current} is not supported by vellox_agency. "
 			f"Supported range: {specifier}. "
-			f"Switch with: bench switch-to-branch version-15 {app} frappe && bench update. "
+			f"Switch with: bench switch-to-branch version-15 {app} && bench update. "
 			f"Frappe/ERPNext v16 support is planned for a future release."
 		)
 
@@ -50,3 +52,4 @@ def _check(app: str, specifier: str) -> None:
 def validate_runtime_compatibility() -> None:
 	_check("frappe", FRAPPE_SUPPORTED)
 	_check("erpnext", ERPNEXT_SUPPORTED)
+	_check("hrms", HRMS_SUPPORTED)

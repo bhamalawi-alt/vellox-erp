@@ -8,7 +8,8 @@ app_license = "mit"
 # Apps
 # ------------------
 
-required_apps = ["erpnext"]
+# Frappe HR holds staff, holidays and leave ([P4-102], capacity plan P4-29).
+required_apps = ["erpnext", "hrms"]
 
 before_migrate = "vellox_agency.compatibility.validate_runtime_compatibility"
 
