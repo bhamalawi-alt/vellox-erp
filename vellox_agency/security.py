@@ -254,6 +254,23 @@ def job_access_permission(doc, ptype=None, user=None, **kwargs) -> bool | None:
 	return None
 
 
+def sees_customer_money(user: str | None = None) -> bool:
+	"""Whether the user's jobs may see invoices, and so a customer's billing figures."""
+	return access_level("Sales Invoice", user) in (None, VIEW, EDIT)
+
+
+def hide_customer_money(doc, method=None) -> None:
+	"""Customer onload: drop 'Billing this year' and 'Total unpaid' for jobs without invoice access.
+
+	ERPNext's get_dashboard_info checks only role-level Sales Invoice read,
+	which skips job access. Today no non-finance job's standard roles have that
+	read, so this keeps the owner's rule (2026-11-01, [P3-142]) even if a role
+	is later given invoice access.
+	"""
+	if not sees_customer_money():
+		doc.set_onload("dashboard_info", [])
+
+
 def _team_can_access(doc, user: str) -> bool:
 	members = _member_projects(user)
 	if doc.doctype == "Project":
