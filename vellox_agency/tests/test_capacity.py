@@ -12,6 +12,7 @@ from frappe.utils import getdate
 WEEK = ("2026-11-09", "2026-11-15")
 HOLIDAY_LIST = "_Test Vellox Holidays 2026"
 LEAVE_TYPE = "_Test Vellox Unpaid Leave"
+LEAVE_TYPE_2 = "_Test Vellox Unpaid Leave 2"
 
 
 def _holiday_list():
@@ -54,21 +55,22 @@ class TestCapacity(FrappeTestCase):
 		# The setup wizard normally creates Gender records; test sites may lack them.
 		if not frappe.db.exists("Gender", "Female"):
 			frappe.get_doc({"doctype": "Gender", "gender": "Female"}).insert(ignore_permissions=True)
-		if not frappe.db.exists("Leave Type", LEAVE_TYPE):
-			frappe.get_doc({"doctype": "Leave Type", "leave_type_name": LEAVE_TYPE, "is_lwp": 1}).insert(
-				ignore_permissions=True
-			)
+		for leave_type in (LEAVE_TYPE, LEAVE_TYPE_2):
+			if not frappe.db.exists("Leave Type", leave_type):
+				frappe.get_doc({"doctype": "Leave Type", "leave_type_name": leave_type, "is_lwp": 1}).insert(
+					ignore_permissions=True
+				)
 
-	def _leave(self, employee, from_date, to_date, half_day=0, status="Approved", submit=True):
+	def _leave(self, employee, from_date, to_date, half_day=0, status="Approved", submit=True, leave_type=LEAVE_TYPE, half_day_date="same"):
 		leave = frappe.get_doc(
 			{
 				"doctype": "Leave Application",
 				"employee": employee.name,
-				"leave_type": LEAVE_TYPE,
+				"leave_type": leave_type,
 				"from_date": from_date,
 				"to_date": to_date,
 				"half_day": half_day,
-				"half_day_date": from_date if half_day else None,
+				"half_day_date": (from_date if half_day_date == "same" else half_day_date) if half_day else None,
 				"status": status,
 				"company": "_Test Company",
 			}
@@ -146,3 +148,60 @@ class TestCapacity(FrappeTestCase):
 		self.assertEqual([w["week_start"] for w in weeks], [getdate("2026-11-09"), getdate("2026-11-16")])
 		self.assertEqual(weeks[0]["available_hours"], 32)
 
+	def test_two_half_days_on_one_date_make_a_full_day_off(self):
+		employee = _employee("Cap Two Halves")
+		self._leave(employee, "2026-11-12", "2026-11-12", half_day=1)
+		self._leave(employee, "2026-11-12", "2026-11-12", half_day=1, leave_type=LEAVE_TYPE_2)
+		self.assertEqual(self._hours(employee), 24)
+
+	def test_a_several_day_half_day_leave_without_a_date_counts_full_days(self):
+		# Frappe HR counts it as full days (total_leave_days 2) when no half-day date is set.
+		employee = _employee("Cap Multi Half")
+		leave = self._leave(employee, "2026-11-09", "2026-11-10", half_day=1, half_day_date=None)
+		self.assertEqual(leave.total_leave_days, 2)
+		self.assertEqual(self._hours(employee), 16)
+
+	def test_cancelled_leave_gives_the_day_back(self):
+		employee = _employee("Cap Cancelled")
+		self._leave(employee, "2026-11-10", "2026-11-10").cancel()
+		self.assertEqual(self._hours(employee), 32)
+
+	def test_dates_past_the_holiday_list_are_refused(self):
+		from vellox_agency.capacity import weekly_capacity
+
+		employee = _employee("Cap Next Year")
+		with self.assertRaisesRegex(frappe.ValidationError, "Holiday List"):
+			weekly_capacity(employee.name, "2027-01-04", 1)
+
+	def test_someone_marked_left_without_a_date_has_no_capacity(self):
+		employee = _employee("Cap Left")
+		employee.db_set("status", "Left")
+		self.assertEqual(self._hours(employee), 0)
+
+	def test_an_unknown_employee_gets_a_clear_error(self):
+		from vellox_agency.capacity import available_hours
+
+		with self.assertRaises(frappe.DoesNotExistError):
+			available_hours("HR-EMP-NOPE", *WEEK)
+
+	def test_the_utilization_target_stays_between_0_and_100(self):
+		for value in (150, -10):
+			with self.subTest(value=value), self.assertRaises(frappe.ValidationError):
+				_employee(f"Cap Target {value}", custom_vellox_utilization_target=value)
+
+	def test_a_quarter_of_weeks_costs_no_more_queries_than_one_week(self):
+		from unittest.mock import patch
+
+		from vellox_agency.capacity import weekly_capacity
+
+		employee = _employee("Cap Quarter")
+		real_sql = frappe.db.sql
+
+		def queries(weeks):
+			weekly_capacity(employee.name, "2026-09-07", weeks)  # warm caches
+			calls = []
+			with patch.object(frappe.db, "sql", side_effect=lambda *a, **k: calls.append(a) or real_sql(*a, **k)):
+				weekly_capacity(employee.name, "2026-09-07", weeks)
+			return len(calls)
+
+		self.assertEqual(queries(13), queries(1), "capacity must not query per week")

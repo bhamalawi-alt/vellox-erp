@@ -32,6 +32,7 @@ EMPLOYEE_FIELDS = [
 		"label": "Utilization Target",
 		"fieldtype": "Percent",
 		"default": str(DEFAULT_UTILIZATION_TARGET),
+		"non_negative": 1,
 		"description": "Share of available hours expected on client work.",
 		"insert_after": "custom_vellox_daily_hours",
 	},
@@ -52,3 +53,13 @@ def setup_people_fields() -> None:
 	# Frappe HR creates it on install; make sure freelancers always have it.
 	if not frappe.db.exists("Employment Type", "Contract"):
 		frappe.get_doc({"doctype": "Employment Type", "employee_type_name": "Contract"}).insert(ignore_permissions=True)
+
+
+def validate_capacity_fields(doc, method=None) -> None:
+	"""Employee validate: a utilization target is a share of available hours."""
+	target = doc.get("custom_vellox_utilization_target")
+	if target is not None and not 0 <= target <= 100:
+		frappe.throw(
+			frappe._("Utilization Target must be between 0 and 100 (got {0}).").format(target),
+			frappe.ValidationError,
+		)
