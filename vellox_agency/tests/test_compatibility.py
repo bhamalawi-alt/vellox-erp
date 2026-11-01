@@ -60,6 +60,34 @@ class TestRuntimeCompatibility(FrappeTestCase):
 		with self._fake():
 			compatibility.validate_runtime_compatibility()
 
+	def test_an_upgrade_refuses_to_strand_old_skill_data(self):
+		# Removing the prototype Skill DocTypes must not silently orphan real records.
+		from vellox_agency.patches import guard_prototype_skill_data
 
-def test_deliberate_ci_failure_probe():
-	assert False, "deliberate failure: proving CI catches broken tests"
+		if not frappe.db.table_exists("Skill Employee"):
+			self.skipTest("no prototype Skill Employee table on this site")
+		frappe.db.sql(
+			"insert into `tabSkill Employee` (name, parent, parenttype, parentfield) values ('_t1', 'x', 'Skill', 'employees')"
+		)
+		try:
+			with self.assertRaisesRegex(frappe.ValidationError, "Skill"):
+				guard_prototype_skill_data.execute()
+		finally:
+			frappe.db.sql("delete from `tabSkill Employee` where name = '_t1'")
+
+	def test_the_guard_passes_when_no_old_skill_data_exists(self):
+		from vellox_agency.patches import guard_prototype_skill_data
+
+		guard_prototype_skill_data.execute()
+
+	def test_migrate_warns_when_frappe_hr_is_not_installed_on_the_site(self):
+		import io
+		import unittest.mock as mock
+		from contextlib import redirect_stdout
+
+		from vellox_agency.security import _report_missing_hrms
+
+		out = io.StringIO()
+		with mock.patch("frappe.get_installed_apps", return_value=["frappe", "erpnext", "vellox_agency"]), redirect_stdout(out):
+			_report_missing_hrms()
+		self.assertIn("install-app hrms", out.getvalue())

@@ -490,6 +490,20 @@ def apply_baseline() -> None:
 	setup_roles_and_permissions()
 	revoke_shares_beyond_jobs()
 	_report_lead_routing()
+	_report_missing_hrms()
+
+
+def _report_missing_hrms() -> None:
+	"""Say so when Frappe HR is in the bench but not installed on this site ([P4-102]).
+
+	The compatibility gate checks the bench, because upgrading needs a migrate
+	before hrms can be installed; this catches a site that never got that step.
+	"""
+	if "hrms" not in frappe.get_installed_apps():
+		print(
+			"Vellox: Frappe HR is required but not installed on this site. "
+			f"Run: bench --site {frappe.local.site} install-app hrms && bench --site {frappe.local.site} migrate"
+		)
 
 
 def _report_lead_routing() -> None:

@@ -8,7 +8,8 @@ from vellox_agency.deprecations import DEPRECATION_TARGETS, LEGACY_REPORTS
 WORKSPACE_PATH = ("vellox_agency_projects", "workspace", "vellox_agency", "vellox_agency.json")
 
 # First-generation prototype modules: empty controllers, never built out.
-PROTOTYPE_DOCTYPES = {"Agency Campaign", "Production Job", "Capacity Plan", "Skill"}
+# Skill now belongs to Frappe HR ([P4-102]).
+PROTOTYPE_DOCTYPES = {"Agency Campaign", "Production Job", "Capacity Plan"}
 
 
 def _workspace():

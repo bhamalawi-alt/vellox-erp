@@ -38,7 +38,8 @@ def _check(app: str, specifier: str) -> None:
 	if not current:
 		raise ValidationError(
 			f"App '{app}' is required by vellox_agency but is not installed. "
-			f"Install it with: bench get-app {app} --branch version-15"
+			f"Install it with: bench get-app {app} --branch version-15, "
+			f"then bench --site <site> install-app {app}"
 		)
 	if Version(current) not in SpecifierSet(specifier):
 		raise ValidationError(
