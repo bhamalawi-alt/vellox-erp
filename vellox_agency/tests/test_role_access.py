@@ -266,7 +266,9 @@ class TestRoleAccess(FrappeTestCase):
 				self.assertEqual(self._level(member, self._new(doctype)), NONE)
 		pm = self._job("Project Manager")
 		self.assertEqual(self._level(pm, self._new("Project Template")), VIEW)
-		self.assertNotEqual(self._level(pm, self._new("Activity Cost")), NONE)
+		# Per-person rates are Finance and Agency Manager only (owner, capacity plan
+		# section 7, 2026-11-01, [P4-31]); this replaced the P3-140 edit access.
+		self.assertEqual(self._level(pm, self._new("Activity Cost")), NONE)
 
 	def test_view_only_save_is_refused_but_links_still_work(self):
 		finance = self._job("Finance")
