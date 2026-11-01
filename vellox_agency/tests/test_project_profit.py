@@ -205,26 +205,62 @@ class TestWorkedExample(_ProfitCase):
 		self.assertEqual(p.signal, "Green")
 		self.assertEqual(p.unpriced_hours, 0)
 
-	def test_an_approved_change_request_adds_its_amendment_quote(self):
+	def _change_request(self, project, path):
+		"""A request moved along `path` with real saves, as people would."""
+		amendment = self._quote(1500, estimate=[{"role": "Developer", "hours": 20, "rate": 30}], vendor=0)
+		request = frappe.get_doc(
+			{
+				"doctype": "Vellox Change Request",
+				"project": project,
+				"title": " > ".join(path),
+				"price_impact": 1500,
+				"amendment_quotation": amendment.name,
+			}
+		).insert(ignore_permissions=True)
+		for status in path:
+			request.status = status
+			request.save(ignore_permissions=True, ignore_version=False)  # keep history, as outside tests
+		return request
+
+	def test_approved_and_implemented_change_requests_add_their_amendment_quote(self):
+		# Owner, 2026-11-01 ([P4-35]): a request closed after it was implemented is a
+		# finished change and counts; one closed straight from Approved was withdrawn.
 		from vellox_agency.profit import project_profit
 
 		project = self._project(self._quote()).name
-		# Owner, 2026-11-01 ([P4-35]): Approved and Implemented count; Closed may mean withdrawn.
-		for status in ("Approved", "Implemented", "Rejected", "Closed"):
-			amendment = self._quote(1500, estimate=[{"role": "Developer", "hours": 20, "rate": 30}], vendor=0)
-			request = frappe.get_doc(
-				{
-					"doctype": "Vellox Change Request",
-					"project": project,
-					"title": f"Extra pages {status}",
-					"price_impact": 1500,
-					"amendment_quotation": amendment.name,
-				}
-			).insert(ignore_permissions=True)
-			request.db_set("status", status)
+		for path in (
+			["Under Review", "Approved"],
+			["Under Review", "Approved", "Implemented"],
+			["Under Review", "Approved", "Implemented", "Closed"],
+			["Under Review", "Approved", "Closed"],
+			["Under Review", "Rejected"],
+		):
+			self._change_request(project, path)
 		p = project_profit(project)
-		self.assertEqual(p.contract_value, 15000)  # 12,000 + two counted amendments of 1,500
-		self.assertEqual(p.budget, 7800 + 2 * 600)
+		self.assertEqual(p.contract_value, 12000 + 3 * 1500)
+		self.assertEqual(p.budget, 7800 + 3 * 600)
+
+	def test_implemented_on_is_set_by_the_server_only(self):
+		project = self._project(self._quote()).name
+		done = self._change_request(project, ["Under Review", "Approved", "Implemented"])
+		self.assertEqual(str(done.implemented_on), frappe.utils.nowdate())
+		withdrawn = self._change_request(project, ["Under Review", "Approved"])
+		withdrawn.implemented_on = "2026-10-01"  # sent by a client
+		withdrawn.status = "Closed"
+		withdrawn.save(ignore_permissions=True)
+		self.assertIsNone(frappe.db.get_value("Vellox Change Request", withdrawn.name, "implemented_on"))
+
+	def test_the_patch_fills_implemented_on_from_history(self):
+		from vellox_agency.patches.backfill_change_request_implemented_on import execute
+
+		project = self._project(self._quote()).name
+		done = self._change_request(project, ["Under Review", "Approved", "Implemented", "Closed"])
+		withdrawn = self._change_request(project, ["Under Review", "Approved", "Closed"])
+		for request in (done, withdrawn):
+			request.db_set("implemented_on", None)  # as on a site upgraded from before [P4-35]
+		execute()
+		self.assertIsNotNone(frappe.db.get_value("Vellox Change Request", done.name, "implemented_on"))
+		self.assertIsNone(frappe.db.get_value("Vellox Change Request", withdrawn.name, "implemented_on"))
 
 	def test_quotes_in_another_currency_use_the_rate_on_their_date(self):
 		from vellox_agency.profit import project_profit, projects_profit

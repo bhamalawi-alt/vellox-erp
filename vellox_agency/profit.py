@@ -33,7 +33,9 @@ REPORTING_CURRENCY = "USD"
 AMBER_MARGIN = 25  # expected margin under this many percent
 AMBER_DRIFT = -10  # or more than this many points below the quote
 RED_MARGIN = 10  # expected margin under this many percent, or forecast over the price
-# Closed may mean withdrawn, so it does not count (owner, 2026-11-01, [P4-35]).
+# Change requests whose amendment quote counts (owner, 2026-11-01, [P4-35]):
+# Approved and Implemented ones, and Closed ones that were implemented first.
+# A request closed straight from Approved was withdrawn.
 CHANGE_REQUEST_COUNTED = ("Approved", "Implemented")
 CLOSED_TASK_STATUSES = ("Completed", "Cancelled", "Template")
 
@@ -87,7 +89,7 @@ PROFIT_FIELDS = [
 # Task level 1 holds the money fields ([P4-31]).
 REMAINING_HOURS_PERMLEVEL = 2
 REMAINING_HOURS_READERS = ("Projects User",)
-REMAINING_HOURS_WRITERS = ("Vellox Project Manager", "Vellox Operations", "Agency Manager")
+REMAINING_HOURS_WRITERS = ("Vellox Project Manager", "Vellox Operations", "Agency Manager", "System Manager")
 INTERNAL_FIELD = {
 	"fieldname": "custom_vellox_internal",
 	"label": "Internal Project",
@@ -320,11 +322,8 @@ def _quotations(projects: dict) -> dict[str, list]:
 	}
 	for row in frappe.get_all(
 		"Vellox Change Request",
-		filters={
-			"project": ["in", list(projects)],
-			"status": ["in", CHANGE_REQUEST_COUNTED],
-			"amendment_quotation": ["is", "set"],
-		},
+		filters={"project": ["in", list(projects)], "amendment_quotation": ["is", "set"]},
+		or_filters=[["status", "in", CHANGE_REQUEST_COUNTED], ["implemented_on", "is", "set"]],
 		fields=["project", "amendment_quotation"],
 	):
 		quote_project[row.amendment_quotation] = row.project
