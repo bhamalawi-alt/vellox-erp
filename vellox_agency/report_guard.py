@@ -21,6 +21,9 @@ MAX_REFERENCE_DEPTH = 10
 
 # Reports on records a job may see that still show billing, cost, salary or
 # profit amounts ([P4-31]): Finance and the Agency Manager only.
+# Reports that narrow their own rows to the team member running them ([P4-32]).
+SELF_SCOPED_REPORTS = frozenset({"Vellox Team Capacity"})
+
 MONEY_REPORTS = frozenset(
 	{"Project Billing Summary", "Employee Billing Summary", "Project Profitability", "Project wise Stock Tracking"}
 )
@@ -61,6 +64,8 @@ def can_run_report(report_name: str, user: str | None = None) -> bool:
 
 		if not sees_rates(user):
 			return False
+	if original_report(report_name).name in SELF_SCOPED_REPORTS:
+		return True
 	return not (security._team_scoped(user) and doctype in security.TEAM_SCOPED_DOCTYPES)
 
 

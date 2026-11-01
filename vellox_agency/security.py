@@ -93,11 +93,13 @@ GOVERNED_DOCTYPES = (
 	"Activity Cost",
 	"Sales Invoice",
 	"Payment Entry",
+	"Vellox Resource Allocation",
 	*MONEY_DOCTYPES,
 	*QUALITY_DOCTYPES,
 )
 _QUALITY = dict.fromkeys(QUALITY_DOCTYPES, EDIT)
-_TEAM_ACCESS = {"Project": VIEW, "Project Update": EDIT, "Task": EDIT, "Timesheet": EDIT}
+# Team members see their own bookings only (capacity plan section 7, [P4-32]).
+_TEAM_ACCESS = {"Project": VIEW, "Project Update": EDIT, "Task": EDIT, "Timesheet": EDIT, "Vellox Resource Allocation": VIEW}
 JOB_ACCESS: dict[str, dict[str, str]] = {
 	"Vellox Sales": {
 		"Account": LINK,
@@ -118,6 +120,7 @@ JOB_ACCESS: dict[str, dict[str, str]] = {
 		"Project Template": VIEW,
 		"Task": EDIT,
 		"Timesheet": EDIT,
+		"Vellox Resource Allocation": EDIT,
 		"Customer": VIEW,
 		"Quotation": VIEW,
 		"Contact": VIEW,
@@ -137,6 +140,7 @@ JOB_ACCESS: dict[str, dict[str, str]] = {
 		"Project Update": VIEW,
 		"Project Template": VIEW,
 		"Timesheet": VIEW,
+		"Vellox Resource Allocation": VIEW,
 		"Contact": VIEW,
 		"Item": VIEW,
 		**_QUALITY,
@@ -154,6 +158,7 @@ JOB_ACCESS: dict[str, dict[str, str]] = {
 		"Customer": VIEW,
 		"Contact": VIEW,
 		"Timesheet": VIEW,
+		"Vellox Resource Allocation": EDIT,
 		"Item": VIEW,
 		**_QUALITY,
 	},
@@ -163,7 +168,7 @@ JOB_ACCESS: dict[str, dict[str, str]] = {
 # projects' tasks, deliverables and updates, and only their own timesheets,
 # unless another job of theirs sees more.
 TEAM_ROLES = frozenset({"Vellox Team Member", "Agency Staff"})
-TEAM_SCOPED_DOCTYPES = ("Project", "Project Update", "Task", "Timesheet", "Deliverable")
+TEAM_SCOPED_DOCTYPES = ("Project", "Project Update", "Task", "Timesheet", "Deliverable", "Vellox Resource Allocation")
 
 # Deleting (owner, 2026-11-01, [P3-141]): the Agency Manager deletes any of these;
 # everyone else only records they created that are still drafts. None means
@@ -270,6 +275,8 @@ def hide_customer_money(doc, method=None) -> None:
 
 
 def _team_can_access(doc, user: str) -> bool:
+	if doc.doctype == "Vellox Resource Allocation":
+		return frappe.db.get_value("Employee", doc.get("employee"), "user_id") == user
 	members = _member_projects(user)
 	if doc.doctype == "Project":
 		return doc.name in members
@@ -299,6 +306,11 @@ def job_access_query(user=None, doctype=None) -> str:
 		return ""
 	if doctype == "Timesheet":
 		return f"`tabTimesheet`.`owner` = {frappe.db.escape(user)}"
+	if doctype == "Vellox Resource Allocation":
+		return (
+			"`tabVellox Resource Allocation`.`employee` in "
+			f"(select `name` from `tabEmployee` where `user_id` = {frappe.db.escape(user)})"
+		)
 	if doctype == "Project":
 		return f"`tabProject`.`name` in ({_member_projects_sql(user)})"
 	condition = f"`tab{doctype}`.`project` in ({_member_projects_sql(user)})"

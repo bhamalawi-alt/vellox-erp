@@ -42,24 +42,29 @@ def _employee(name, **kw):
 	).insert(ignore_permissions=True)
 
 
+def setup_calendar_fixtures():
+	"""Masters the capacity tests need; shared with the booking tests."""
+	from vellox_agency.setup.people import setup_people_fields
+	from vellox_agency.tests.test_offer_builder import _bootstrap_erpnext_test_fixtures
+
+	_bootstrap_erpnext_test_fixtures()
+	setup_people_fields()
+	frappe.db.set_single_value("HR Settings", "leave_approver_mandatory_in_leave_application", 0)
+	# The setup wizard normally creates Gender records; test sites may lack them.
+	if not frappe.db.exists("Gender", "Female"):
+		frappe.get_doc({"doctype": "Gender", "gender": "Female"}).insert(ignore_permissions=True)
+	for leave_type in (LEAVE_TYPE, LEAVE_TYPE_2):
+		if not frappe.db.exists("Leave Type", leave_type):
+			frappe.get_doc({"doctype": "Leave Type", "leave_type_name": leave_type, "is_lwp": 1}).insert(
+				ignore_permissions=True
+			)
+
+
 class TestCapacity(FrappeTestCase):
 	@classmethod
 	def setUpClass(cls):
 		super().setUpClass()
-		from vellox_agency.setup.people import setup_people_fields
-		from vellox_agency.tests.test_offer_builder import _bootstrap_erpnext_test_fixtures
-
-		_bootstrap_erpnext_test_fixtures()
-		setup_people_fields()
-		frappe.db.set_single_value("HR Settings", "leave_approver_mandatory_in_leave_application", 0)
-		# The setup wizard normally creates Gender records; test sites may lack them.
-		if not frappe.db.exists("Gender", "Female"):
-			frappe.get_doc({"doctype": "Gender", "gender": "Female"}).insert(ignore_permissions=True)
-		for leave_type in (LEAVE_TYPE, LEAVE_TYPE_2):
-			if not frappe.db.exists("Leave Type", leave_type):
-				frappe.get_doc({"doctype": "Leave Type", "leave_type_name": leave_type, "is_lwp": 1}).insert(
-					ignore_permissions=True
-				)
+		setup_calendar_fixtures()
 
 	def _leave(self, employee, from_date, to_date, half_day=0, status="Approved", submit=True, leave_type=LEAVE_TYPE, half_day_date="same"):
 		leave = frappe.get_doc(
