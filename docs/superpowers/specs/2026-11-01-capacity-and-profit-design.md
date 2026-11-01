@@ -259,3 +259,8 @@ where it applies.
     approval tier, not the exact margin, which would let anyone who edits hours
     work out each role's rate. The exact margin, the labour cost and the margin
     frozen on a project are for Finance and the Agency Manager.
+13. **Accepted limit (owner, 2026-11-01)**: a determined Sales or Operations
+    user can still find a role's rate by re-saving a test quote about twenty
+    times while watching the band flip. Operations can also infer rates from
+    how margin drift moves when task hours change. Both need deliberate,
+    repeated effort and are accepted.
