@@ -348,6 +348,7 @@ override_whitelisted_methods = {
 	"frappe.desk.query_report.run": "vellox_agency.report_guard.run",
 	"frappe.desk.query_report.get_script": "vellox_agency.report_guard.get_script",
 	"frappe.core.doctype.prepared_report.prepared_report.make_prepared_report": "vellox_agency.report_guard.make_prepared_report",
+	"frappe.desk.query_report.save_report": "vellox_agency.report_guard.save_report",
 	# Rates follow job access ([P4-31]); see rates.
 	"erpnext.projects.doctype.timesheet.timesheet.get_activity_cost": "vellox_agency.rates.get_activity_cost",
 	"erpnext.projects.doctype.timesheet.timesheet.get_projectwise_timesheet_data": "vellox_agency.rates.get_projectwise_timesheet_data",
@@ -360,7 +361,42 @@ override_whitelisted_methods = {
 	"frappe.client.save": "vellox_agency.client_guard.save",
 	"frappe.client.submit": "vellox_agency.client_guard.submit",
 	"frappe.client.cancel": "vellox_agency.client_guard.cancel",
+	# Lists, counts and searches refuse filters on hidden fields ([P4-34]); see api_guard.
+	"frappe.client.get_list": "vellox_agency.api_guard.get_list",
+	"frappe.client.get_count": "vellox_agency.api_guard.get_count",
+	"frappe.client.get_value": "vellox_agency.api_guard.get_value",
+	"frappe.desk.reportview.get": "vellox_agency.api_guard.reportview_get",
+	"frappe.desk.reportview.get_list": "vellox_agency.api_guard.reportview_get_list",
+	"frappe.desk.reportview.get_count": "vellox_agency.api_guard.reportview_get_count",
+	"frappe.desk.reportview.get_sidebar_stats": "vellox_agency.api_guard.get_sidebar_stats",
+	"frappe.desk.listview.get_group_by_count": "vellox_agency.api_guard.get_group_by_count",
+	"frappe.desk.search.search_link": "vellox_agency.api_guard.search_link",
+	"frappe.desk.search.search_widget": "vellox_agency.api_guard.search_widget",
+	"frappe.client.get": "vellox_agency.api_guard.get",
+	"frappe.desk.reportview.get_stats": "vellox_agency.api_guard.get_stats",
+	"frappe.desk.reportview.get_filter_dashboard_data": "vellox_agency.api_guard.get_filter_dashboard_data",
+	"frappe.desk.form.utils.get_next": "vellox_agency.api_guard.get_next",
+	"frappe.desk.calendar.get_events": "vellox_agency.api_guard.get_calendar_events",
+	"erpnext.projects.doctype.timesheet.timesheet.get_events": "vellox_agency.api_guard.get_timesheet_events",
+	"frappe.desk.doctype.number_card.number_card.get_result": "vellox_agency.api_guard.get_number_card_result",
+	"frappe.desk.doctype.number_card.number_card.get_percentage_difference": "vellox_agency.api_guard.get_number_card_difference",
+	"frappe.desk.doctype.dashboard_chart.dashboard_chart.get": "vellox_agency.api_guard.get_dashboard_chart",
+	"frappe.client.validate_link": "vellox_agency.api_guard.validate_link",
+	"frappe.geo.utils.get_coords": "vellox_agency.api_guard.get_coords",
+	"frappe.utils.goal.get_monthly_goal_graph_data": "vellox_agency.api_guard.get_monthly_goal_graph_data",
+	"frappe.www.list.get_list_data": "vellox_agency.api_guard.get_list_data",
+	"erpnext.projects.utils.query_task": "vellox_agency.api_guard.query_task",
+	"frappe.www.list.get": "vellox_agency.api_guard.get_portal_list",
+	"frappe.desk.query_report.get_data_for_custom_field": "vellox_agency.api_guard.get_data_for_custom_field",
+	# Document methods send the whole document back ([P4-34] review).
+	"run_doc_method": "vellox_agency.api_guard.run_doc_method",
+	"runserverobj": "vellox_agency.api_guard.run_doc_method",
+	"frappe.handler.run_doc_method": "vellox_agency.api_guard.run_doc_method",
+	"frappe.handler.runserverobj": "vellox_agency.api_guard.run_doc_method",
 }
+
+# REST lists refuse hidden filters; REST create and update return only readable fields ([P4-34]).
+after_request = ["vellox_agency.api_guard.after_request"]
 
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "vellox_agency.event.get_events"

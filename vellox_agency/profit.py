@@ -108,6 +108,8 @@ STORED = (
 def setup_profit_fields() -> None:
 	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
+	from vellox_agency.security import grant_permlevel
+
 	fields = [
 		{**field, "read_only": 1, "no_copy": 1, "permlevel": PROFIT_PERMLEVEL} for field in PROFIT_FIELDS
 	]
@@ -128,27 +130,14 @@ def setup_profit_fields() -> None:
 		update=True,
 	)
 	for role in PROFIT_READERS:
-		_grant("Project", role, PROFIT_PERMLEVEL, "read")
+		grant_permlevel("Project", role, PROFIT_PERMLEVEL, "read")
 	for role in REMAINING_HOURS_READERS:
-		_grant("Task", role, REMAINING_HOURS_PERMLEVEL, "read")
+		grant_permlevel("Task", role, REMAINING_HOURS_PERMLEVEL, "read")
 	for role in REMAINING_HOURS_WRITERS:
-		_grant("Task", role, REMAINING_HOURS_PERMLEVEL, "read")
-		_grant("Task", role, REMAINING_HOURS_PERMLEVEL, "write")
+		grant_permlevel("Task", role, REMAINING_HOURS_PERMLEVEL, "read")
+		grant_permlevel("Task", role, REMAINING_HOURS_PERMLEVEL, "write")
 	frappe.clear_cache(doctype="Project")
 	frappe.clear_cache(doctype="Task")
-
-
-def _grant(doctype: str, role: str, permlevel: int, right: str) -> None:
-	"""Give `role` `right` at `permlevel` through Custom DocPerm, once."""
-	from frappe.permissions import add_permission, setup_custom_perms, update_permission_property
-
-	filters = {"parent": doctype, "role": role, "permlevel": permlevel, "if_owner": 0}
-	if frappe.db.get_value("Custom DocPerm", filters, right):
-		return
-	setup_custom_perms(doctype)
-	if not frappe.db.exists("Custom DocPerm", filters):
-		add_permission(doctype, role, permlevel)
-	update_permission_property(doctype, role, permlevel, right, 1, validate=False)
 
 
 def profit_signal(expected_margin, margin_drift, forecast_cost, contract_value) -> str:

@@ -242,18 +242,25 @@ def setup_opportunity_pipeline() -> None:
 	frappe.db.commit()
 
 
+# Hidden from Project Managers: the hours carry the team's rates ([P4-34], see
+# api_guard.setup_estimate_access for who reads level 2).
+ESTIMATE_PERMLEVEL = 2
 QUOTATION_ESTIMATE_FIELDS = [
 	{
 		"fieldname": "custom_vellox_estimate_hours",
 		"label": "Estimate Hours (role/hours/rate JSON)",
 		"fieldtype": "Small Text",
 		"insert_after": "custom_vellox_technical_proposal",
+		"permlevel": ESTIMATE_PERMLEVEL,
+		"print_hide": 1,  # internal rates never print for a customer
 	},
 	{
 		"fieldname": "custom_vellox_vendor_cost",
 		"label": "Vendor Cost (company currency)",
 		"fieldtype": "Currency",
 		"insert_after": "custom_vellox_estimate_hours",
+		"permlevel": ESTIMATE_PERMLEVEL,
+		"print_hide": 1,  # internal rates never print for a customer
 	},
 	{
 		"fieldname": "custom_vellox_estimated_margin",
@@ -261,6 +268,8 @@ QUOTATION_ESTIMATE_FIELDS = [
 		"fieldtype": "Percent",
 		"insert_after": "custom_vellox_vendor_cost",
 		"read_only": 1,
+		"permlevel": ESTIMATE_PERMLEVEL,
+		"print_hide": 1,  # internal rates never print for a customer
 	},
 ]
 

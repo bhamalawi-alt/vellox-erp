@@ -6,8 +6,8 @@ saving a project through them would receive its hidden cost and margin
 amounts. These wrappers apply the filter the desk form and frappe.client.get
 already apply.
 
-Known limit: the REST routes /api/resource (create and update) still return
-the full document; that is tracked on card P4-34.
+The REST routes (/api/resource create and update, /api/v2/document create)
+get the same filter in api_guard.after_request ([P4-34]).
 """
 
 import frappe
