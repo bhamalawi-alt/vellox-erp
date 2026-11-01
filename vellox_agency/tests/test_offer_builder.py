@@ -93,6 +93,20 @@ def _bootstrap_erpnext_test_fixtures():
 		frappe.db.commit()
 
 
+def make_submitted_quotation(**args):
+	"""A submitted quotation in the auto-approved band.
+
+	It carries a token vendor cost because a quote without any estimate needs
+	approval before it can be submitted ([P3-143]).
+	"""
+	args.pop("do_not_submit", None)
+	quotation = make_quotation(do_not_save=True, **args)
+	quotation.custom_vellox_vendor_cost = 1
+	quotation.insert(ignore_permissions=True)
+	quotation.submit()
+	return quotation
+
+
 TEST_CUSTOMER = "_Test Vellox Customer"
 TEST_PRICE_LIST = "_Test Vellox Selling"
 
@@ -165,10 +179,12 @@ class TestOfferBuilder(FrappeTestCase):
 	def test_rejects_submitted_quotation(self):
 		from vellox_agency.offer_builder.proposal import build_technical_proposal
 
-		quotation = self.make_quotation_doc(
+		quotation = make_submitted_quotation(
+			party_name=TEST_CUSTOMER,
+			selling_price_list=TEST_PRICE_LIST,
+			warehouse="",
 			item=self.strategy.name,
 			rate=100,
-			do_not_submit=False,
 		)
 		with self.assertRaisesRegex(frappe.ValidationError, "draft Quotation"):
 			build_technical_proposal(quotation.as_dict())

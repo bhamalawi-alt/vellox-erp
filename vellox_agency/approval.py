@@ -37,10 +37,13 @@ def _discount_percent(doc) -> float:
 
 def required_approver_role(doc) -> str | None:
 	"""None means auto-approved."""
+	from vellox_agency.estimate import has_estimate
+
 	margin = flt(doc.get("custom_vellox_estimated_margin"))
 	discount = _discount_percent(doc)
 	if discount <= 5 and margin >= 40:
-		return None
+		# Without an estimate the margin is unknown, so someone must look (owner, 2026-11-01, [P3-143]).
+		return None if has_estimate(doc) else "Vellox Operations"
 	if discount <= 15 and margin >= 25:
 		return "Vellox Operations"
 	return "Agency Manager"

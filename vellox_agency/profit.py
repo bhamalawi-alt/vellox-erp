@@ -200,9 +200,14 @@ def _figures(project, quotes, time_rows, invoice_rows, claim_rows, remaining, ra
 	contract = labour = vendor = 0
 	for quote in quotes:
 		rate = rates.get(quote.currency, quote.transaction_date)
+		# Labour and vendor cost are company-currency amounts ([P3-143]).
+		company_rate = rates.get(_company_currency(quote.company), quote.transaction_date)
 		contract += flt(quote.net_total) * rate
-		labour += _estimate_labour(quote) * rate
-		vendor += flt(quote.custom_vellox_vendor_cost) * rate
+		if quote.custom_vellox_estimated_labour_cost:
+			labour += flt(quote.custom_vellox_estimated_labour_cost) * company_rate
+		else:
+			labour += _estimate_labour(quote) * rate  # quotes saved before [P3-143] carry typed rates
+		vendor += flt(quote.custom_vellox_vendor_cost) * company_rate
 	company_currency = _company_currency(project.company)
 	p = frappe._dict(project=project.name)
 	p.contract_value = round(contract, 2)
@@ -293,7 +298,7 @@ def _company_currency(company: str) -> str:
 
 
 def _estimate_labour(quote) -> float:
-	"""Hours x rates from a quote's estimate panel; bad data raises without a message dialog."""
+	"""Hours x typed rates, for quotes saved before [P3-143]; bad data raises without a message dialog."""
 	raw = quote.custom_vellox_estimate_hours
 	try:
 		rows = json.loads(raw) if isinstance(raw, str) and raw else (raw or [])
@@ -324,10 +329,12 @@ def _quotations(projects: dict) -> dict[str, list]:
 		filters={"name": ["in", list(quote_project)], "docstatus": 1},
 		fields=[
 			"name",
+			"company",
 			"currency",
 			"transaction_date",
 			"net_total",
 			"custom_vellox_estimate_hours",
+			"custom_vellox_estimated_labour_cost",
 			"custom_vellox_vendor_cost",
 		],
 	):

@@ -24,7 +24,7 @@ class TestAcceptanceMapper(FrappeTestCase):
 		_ensure_acceptance_fields()
 
 	def _submitted_quotation_with_template(self):
-		from erpnext.selling.doctype.quotation.test_quotation import make_quotation
+		from vellox_agency.tests.test_offer_builder import make_submitted_quotation
 
 		if not frappe.db.exists("Project Template", "Vellox Delivery Template"):
 			# ERPNext v15 (15.124+) only accepts template tasks in a Project Template.
@@ -44,7 +44,7 @@ class TestAcceptanceMapper(FrappeTestCase):
 			make_item(item, {"is_stock_item": 0, "stock_uom": "Unit"})
 		frappe.db.set_value("Item", item, "custom_vellox_project_template", "Vellox Delivery Template")
 
-		q = make_quotation(
+		q = make_submitted_quotation(
 			item=item,
 			party_name=self.TEST_CUSTOMER,
 			selling_price_list=self.TEST_PRICE_LIST,
@@ -79,7 +79,7 @@ class TestAcceptanceMapper(FrappeTestCase):
 		self.assertTrue(second["existing"])
 
 	def test_practice_service_creates_its_steps_as_tasks(self):
-		from erpnext.selling.doctype.quotation.test_quotation import make_quotation
+		from vellox_agency.tests.test_offer_builder import make_submitted_quotation
 
 		from vellox_agency.setup.commercial import PRACTICES
 		from vellox_agency.setup.practice_templates import (
@@ -95,7 +95,7 @@ class TestAcceptanceMapper(FrappeTestCase):
 		steps = get_steps(template)
 		item_name = frappe.db.get_value("Item", item_code, "item_name")
 
-		q = make_quotation(
+		q = make_submitted_quotation(
 			item=item_code,
 			party_name=self.TEST_CUSTOMER,
 			selling_price_list=self.TEST_PRICE_LIST,

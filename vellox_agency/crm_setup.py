@@ -248,7 +248,8 @@ ESTIMATE_PERMLEVEL = 2
 QUOTATION_ESTIMATE_FIELDS = [
 	{
 		"fieldname": "custom_vellox_estimate_hours",
-		"label": "Estimate Hours (role/hours/rate JSON)",
+		"label": "Estimate Hours (role/hours JSON)",
+		"description": 'Rows like [{"role": "Developer", "hours": 40}]. Each role is priced at the cost rate Finance sets on its Activity Type.',
 		"fieldtype": "Small Text",
 		"insert_after": "custom_vellox_technical_proposal",
 		"permlevel": ESTIMATE_PERMLEVEL,

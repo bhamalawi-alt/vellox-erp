@@ -60,6 +60,10 @@ class _ProfitCase(FrappeTestCase):
 		setup_delivery_roles()
 		setup_roles_and_permissions()
 		setup_profit_fields()
+		from vellox_agency.tests.test_estimate import role_rate
+
+		for role, rate in (("Developer", 30), ("Designer", 25), ("Project Manager", 32.5)):
+			role_rate(role, rate)
 		frappe.db.set_single_value("Projects Settings", "ignore_employee_time_overlap", 1)
 		_user(PM_USER, JOB_PROFILES["Project Manager"])
 		_user(FIN_USER, JOB_PROFILES["Finance"])
@@ -104,12 +108,13 @@ class _ProfitCase(FrappeTestCase):
 			currency="USD",
 			do_not_save=True,
 		)
+		# Finance's role rates (set in setUpClass) price the hours ([P3-143]).
 		quote.custom_vellox_estimate_hours = json.dumps(
 			estimate
 			or [
-				{"role": "Developer", "hours": 120, "rate": 30},
-				{"role": "Designer", "hours": 40, "rate": 25},
-				{"role": "PM/QA", "hours": 80, "rate": 32.5},
+				{"role": "Developer", "hours": 120},
+				{"role": "Designer", "hours": 40},
+				{"role": "Project Manager", "hours": 80},
 			]
 		)
 		quote.custom_vellox_vendor_cost = vendor
@@ -212,7 +217,7 @@ class TestWorkedExample(_ProfitCase):
 
 	def _change_request(self, project, path):
 		"""A request moved along `path` with real saves, as people would."""
-		amendment = self._quote(1500, estimate=[{"role": "Developer", "hours": 20, "rate": 30}], vendor=0)
+		amendment = self._quote(1500, estimate=[{"role": "Developer", "hours": 20}], vendor=0)
 		request = frappe.get_doc(
 			{
 				"doctype": "Vellox Change Request",
@@ -285,7 +290,8 @@ class TestWorkedExample(_ProfitCase):
 		project = self._project(quote).name
 		p = project_profit(project)
 		self.assertAlmostEqual(p.contract_value, 240)  # 12,000 EGP x 0.02
-		self.assertAlmostEqual(p.budget, 156)
+		# Labour and vendor cost are company-currency (USD) amounts, whatever the quote's currency ([P3-143]).
+		self.assertAlmostEqual(p.budget, 7800)
 
 		# A quote dated before any rate: a note for that project, the others still work.
 		older = self._quote()
