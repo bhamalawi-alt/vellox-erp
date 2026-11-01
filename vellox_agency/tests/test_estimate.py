@@ -205,9 +205,9 @@ class TestRateChanges(FrappeTestCase):
 		self.addCleanup(role_rate, ROLE_A, 500)
 		other = "est-second-person@example.com"
 		if not frappe.db.exists("User", other):
-			frappe.get_doc({"doctype": "User", "email": other, "first_name": "Est", "send_welcome_email": 0}).insert(
-				ignore_permissions=True
-			)
+			frappe.get_doc(
+				{"doctype": "User", "email": other, "first_name": "Est", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
 			# ERPNext's own role only: Vellox job roles would join lead routing on the test site.
 			frappe.get_doc("User", other).add_roles("Sales User")
 		doc = frappe.get_doc("Quotation", quote.name)
@@ -260,3 +260,49 @@ class TestNoEstimateNeedsApproval(FrappeTestCase):
 			custom_vellox_vendor_cost=0,
 		)
 		self.assertIsNone(required_approver_role(doc))
+
+
+class TestLegacyQuotes(FrappeTestCase):
+	"""Drafts saved before [P3-143] carry typed rates."""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		from vellox_agency.tests.test_offer_builder import _bootstrap_erpnext_test_fixtures
+
+		_bootstrap_erpnext_test_fixtures()
+		role_rate(ROLE_A, 500)
+
+	def test_the_approver_can_follow_the_rates_changed_message_and_approve(self):
+		from vellox_agency.approval import _commercial_terms, _terms_setters
+
+		quote = _quote(rate=100000, estimate=[{"role": ROLE_A, "hours": 10}])
+		# As stored before the update: typed rate, other letter case, older margin.
+		legacy = json.dumps([{"role": ROLE_A.lower(), "hours": 10, "rate": 50}])
+		frappe.db.set_value(
+			"Quotation",
+			quote.name,
+			{"custom_vellox_estimate_hours": legacy, "custom_vellox_estimated_margin": 99.5},
+		)
+		before = frappe.get_doc("Quotation", quote.name)
+		approver = "est-approver@example.com"
+		if not frappe.db.exists("User", approver):
+			frappe.get_doc(
+				{"doctype": "User", "email": approver, "first_name": "Est", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
+			frappe.get_doc("User", approver).add_roles("Sales User")
+		doc = frappe.get_doc("Quotation", quote.name)
+		with self.set_user(approver):
+			doc.save(ignore_permissions=True)  # the re-save the message asks for
+		self.assertNotIn(approver, _terms_setters(doc))
+		self.assertEqual(_commercial_terms(before, by_person=True), _commercial_terms(doc, by_person=True))
+
+	def test_the_patch_gives_older_quotes_a_band(self):
+		from vellox_agency.patches.fill_quote_margin_band import execute
+
+		quote = _quote(estimate=[{"role": ROLE_A, "hours": 10}])
+		quote.db_set("custom_vellox_margin_band", None)
+		execute()
+		self.assertEqual(
+			frappe.db.get_value("Quotation", quote.name, "custom_vellox_margin_band"), "40% or more"
+		)

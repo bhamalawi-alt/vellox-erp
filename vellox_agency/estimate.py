@@ -166,7 +166,9 @@ def _rows(raw) -> list[dict]:
 
 def _non_negative(value, label: str) -> float:
 	number = flt(value)
-	if not math.isfinite(number) or number < 0:
+	if not math.isfinite(number):
+		frappe.throw(_("{0} must be a number.").format(label), frappe.ValidationError)
+	if number < 0:
 		frappe.throw(_("{0} cannot be negative.").format(label), frappe.ValidationError)
 	return number
 

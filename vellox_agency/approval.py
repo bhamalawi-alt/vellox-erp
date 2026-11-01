@@ -72,8 +72,21 @@ def _commercial_terms(doc, by_person: bool = False) -> str:
 	}
 	if by_person:
 		del terms["margin"]
-		terms["estimate"] = [doc.get("custom_vellox_estimate_hours"), flt(doc.get("custom_vellox_vendor_cost"), 2)]
+		terms["estimate"] = [_estimate_key(doc.get("custom_vellox_estimate_hours")), flt(doc.get("custom_vellox_vendor_cost"), 2)]
 	return hashlib.sha256(json.dumps(terms, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _estimate_key(raw) -> list:
+	"""Estimate rows as roles and hours only, however they were stored.
+
+	Quotes saved before [P3-143] hold typed rates, and roles may differ in letter
+	case; the rewrite on save must not count as the saver changing the terms.
+	"""
+	try:
+		rows = json.loads(raw) if isinstance(raw, str) and raw else (raw or [])
+		return sorted((str(row.get("role") or "").strip().lower(), flt(row.get("hours"))) for row in rows)
+	except (ValueError, TypeError, AttributeError):
+		return [str(raw)]
 
 
 def _set_approval(doc, status: str, approved_by: str | None, terms: str | None) -> None:

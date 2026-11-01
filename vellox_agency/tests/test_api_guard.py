@@ -228,6 +228,20 @@ class TestQuoteEstimate(_GuardCase):
 		self.assertIn(ESTIMATE_PERMLEVEL, meta.get_permlevel_access("read", user=FIN_USER))
 		self.assertNotIn(ESTIMATE_PERMLEVEL, meta.get_permlevel_access("write", user=FIN_USER))
 
+	def test_only_finance_reads_the_exact_margin_and_labour_cost(self):
+		# Level 3 ([P3-143]): Sales and Operations see the band, not the figure.
+		meta = frappe.get_meta("Quotation")
+		self.assertNotIn(3, meta.get_permlevel_access("read", user=OPS_USER))
+		self.assertNotIn(3, meta.get_permlevel_access("read", user=PM_USER))
+		self.assertIn(3, meta.get_permlevel_access("read", user=FIN_USER))
+		self.assertIn(2, meta.get_permlevel_access("read", user=OPS_USER))  # the band
+		with self.set_user(OPS_USER):
+			quote = frappe.get_list("Quotation", limit=1, pluck="name")
+			if quote:
+				doc = frappe.get_doc("Quotation", quote[0])
+				doc.apply_fieldlevel_read_permissions()
+				self.assertFalse(doc.get("custom_vellox_estimated_labour_cost"))
+
 	def test_sales_and_the_agency_manager_keep_it(self):
 		# Checked on the permission rows: creating those users would join lead routing.
 		from vellox_agency.api_guard import ESTIMATE_PERMLEVEL
