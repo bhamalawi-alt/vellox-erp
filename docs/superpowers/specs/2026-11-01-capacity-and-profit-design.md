@@ -60,8 +60,10 @@ working days      = days in the week − holidays (Holiday List) − approved le
                     (half-day leave counts 0.5)
 available hours   = working days × daily hours
 target hours      = available hours × utilization target / 100
-confirmed hours   = Σ allocation hours/week for allocations overlapping the week,
-                    pro rata for partial weeks
+confirmed hours   = Σ allocation hours/week for allocations overlapping the week;
+                    a partial week counts the share of that week's working days
+                    it covers (owner, 2026-11-01). Weeks run Monday to Sunday
+                    (owner, 2026-11-01). Leave does not reduce booked hours.
 free hours        = available hours − confirmed hours
 overbooked hours  = max(0, confirmed hours − available hours)
 ```
@@ -84,7 +86,9 @@ likely hours (role, week) = role hours × win probability (stage %)
 ```
 
 Likely demand is shown **by role**, not by person, next to confirmed numbers
-("Developers: 120 h free, 60 h likely"). It never counts as overbooking.
+("Developers: 120 h free, 60 h likely"). It never counts as overbooking. Template
+steps without a role count as "Unassigned". Sales sees it in its own report
+(*Vellox Likely Demand*), with no people or bookings ([P4-32]).
 
 ## 4. Utilization (actual)
 

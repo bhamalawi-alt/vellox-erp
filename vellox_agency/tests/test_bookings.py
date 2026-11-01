@@ -123,11 +123,31 @@ class TestBookings(_BookingCase):
 		self._book(person, self.second, 10).cancel()
 		self.assertEqual(self._week(person)["confirmed_hours"], 0)
 
-	def test_a_part_week_booking_counts_its_share(self):
-		# Wed 11 to Sun 15: 5 of the week's 7 days.
+	def test_a_part_week_booking_counts_its_share_of_working_days(self):
+		# Owner, 2026-11-01: by working days. The week's working days are Mon 9,
+		# Tue 10, Thu 12 and Sun 15; Wed 11 to Sun 15 covers two of them (Thu, Sun).
 		person = self._fresh("Part")
 		self._book(person, self.project, 14, from_date="2026-11-11", to_date="2026-11-15")
-		self.assertEqual(self._week(person)["confirmed_hours"], 10)
+		self.assertEqual(self._week(person)["confirmed_hours"], 7)
+
+	def test_leave_does_not_shrink_booked_hours(self):
+		# Booked hours are a commitment; leave lowers what is available instead.
+		person = self._fresh("Leave")
+		leave = frappe.get_doc(
+			{
+				"doctype": "Leave Application",
+				"employee": person,
+				"leave_type": self.leave_type,
+				"from_date": "2026-11-10",
+				"to_date": "2026-11-10",
+				"status": "Approved",
+				"company": "_Test Company",
+			}
+		).insert(ignore_permissions=True)
+		leave.submit()
+		self._book(person, self.project, 32)
+		week = self._week(person)
+		self.assertEqual((week["available_hours"], week["confirmed_hours"], week["overbooked_hours"]), (24, 32, 8))
 
 	def test_a_booking_needs_sane_dates_and_hours(self):
 		for kwargs in ({"from_date": "2026-11-15", "to_date": "2026-11-09"}, {"hours": 0}):
@@ -161,6 +181,16 @@ class TestBookings(_BookingCase):
 		self.assertEqual(booking.docstatus, 1)
 		messages = " ".join(str(m) for m in frappe.get_message_log())
 		self.assertIn("overbooked", messages.lower())
+		self.assertIn(frappe.db.get_value("Employee", person, "employee_name"), messages)
+
+	def test_a_missing_holiday_list_does_not_raise_a_red_error_on_submit(self):
+		person = self._fresh("NoList")
+		frappe.clear_messages()
+		with patch("vellox_agency.capacity.get_holiday_list_for_employee", return_value=None):
+			booking = self._book(person, self.project, 5)
+		self.assertEqual(booking.docstatus, 1)
+		log = frappe.get_message_log()
+		self.assertFalse([m for m in log if m.get("raise_exception")], log)
 
 
 class TestLikelyDemand(_BookingCase):
@@ -182,6 +212,21 @@ class TestLikelyDemand(_BookingCase):
 		self.assertAlmostEqual(demand["Developer"][0]["likely_hours"], 16, places=2)
 		self.assertAlmostEqual(demand["Developer"][8]["likely_hours"], 16, places=2)
 		self.assertAlmostEqual(demand["Developer"][9]["likely_hours"], 0, places=2)
+
+	def test_steps_without_a_role_count_as_unassigned(self):
+		from vellox_agency.capacity import likely_demand
+		from vellox_agency.tests.test_pipeline import _make_opportunity, _make_qualified_lead
+
+		item = frappe.db.get_value("Item", {"custom_vellox_project_template": "Vellox — Web Development"})
+		opp = _make_opportunity(
+			_make_qualified_lead().name, expected_closing="2026-11-09", items=[{"item_code": item, "qty": 1, "rate": 1000}]
+		)
+		opp.db_set("custom_vellox_probability", 50)
+		steps = [frappe._dict(default_role=None, est_days=5)]
+		with patch("vellox_agency.setup.practice_templates.get_steps", return_value=steps):
+			demand = likely_demand(WEEK, 1)
+		self.assertNotIn(None, demand)
+		self.assertIn("Unassigned", demand)
 
 	def test_lost_deals_add_nothing(self):
 		from vellox_agency.capacity import likely_demand
@@ -245,6 +290,26 @@ class TestTeamCapacityReport(_BookingCase):
 		self.assertIn(self.other, {r.get("employee") for r in rows})
 		own = set(frappe.get_all("Employee", filters={"user_id": TEAM}, pluck="name"))
 		self.assertTrue({r.get("employee") for r in rows} <= own, "only their own rows, no likely line")
+
+	def test_a_team_member_runs_the_report_through_the_real_route(self):
+		from vellox_agency.report_guard import run
+
+		with self.set_user(TEAM):
+			result = run(report_name=self.REPORT, filters={"from_date": WEEK, "weeks": 1})
+		employees = {row.get("employee") for row in result["result"] if isinstance(row, dict)}
+		self.assertIn(self.other, employees)
+
+	def test_sales_sees_the_likely_line_but_no_people(self):
+		from vellox_agency.report_guard import can_run_report
+		from vellox_agency.vellox_agency_crm.report.vellox_likely_demand.vellox_likely_demand import execute
+
+		with _as_job("Vellox Sales"):
+			self.assertTrue(can_run_report("Vellox Likely Demand", "someone@example.com"))
+			self.assertFalse(can_run_report(self.REPORT, "someone@example.com"))
+			columns, _rows = execute(frappe._dict(from_date=WEEK, weeks=2))
+		self.assertNotIn("employee", {c["fieldname"] for c in columns})
+		with _as_job("Vellox Team Member"):
+			self.assertFalse(can_run_report("Vellox Likely Demand", "someone@example.com"))
 
 	def test_the_report_follows_booking_access(self):
 		from vellox_agency.report_guard import can_run_report

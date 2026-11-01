@@ -12,9 +12,11 @@ most a full day. Holidays include the weekly offs in the Holiday List, so a
 site sets its weekend there (Friday and Saturday in Libya). Dates the Holiday
 List does not cover are refused rather than counted as working days.
 
-Bookings ([P4-32]): confirmed hours = submitted Vellox Resource Allocations,
-each spread evenly over its calendar days (hours per week / 7 a day), so a part
-week counts its share. free = available - confirmed (never below 0);
+Bookings ([P4-32]): confirmed hours = submitted Vellox Resource Allocations. A
+booking's hours per week are shared over that week's working days (owner,
+2026-11-01), so a part week counts the share of working days it covers;
+holidays and weekends use none. Leave does not shrink booked hours (it lowers
+what is available). free = available - confirmed (never below 0);
 overbooked = confirmed - available when positive. Overbooking warns, it does
 not block.
 
@@ -37,6 +39,7 @@ from frappe.utils import add_days, date_diff, flt, getdate
 MAX_WEEKS = 104
 HOURS_PER_TEMPLATE_DAY = 8
 WORKING_DAYS_PER_WEEK = 5
+UNASSIGNED_ROLE = "Unassigned"  # template steps without a default role
 
 
 def _days(start, end):
@@ -60,24 +63,24 @@ def _person(employee: str) -> frappe._dict:
 		as_dict=True,
 	)
 	if not person:
-		frappe.throw(_("Employee {0} not found.").format(employee), frappe.DoesNotExistError)
+		raise frappe.DoesNotExistError(_("Employee {0} not found.").format(employee))
 	return person
 
 
 def _holidays(employee: str, start, end) -> set:
 	holiday_list = get_holiday_list_for_employee(employee, raise_exception=False)
+	# Raised, not frappe.throw: callers that catch it (the report, the booking
+	# warning) must not leave a red error message behind.
 	if not holiday_list:
-		frappe.throw(
-			_("Set a Holiday List on Employee {0} or its Company to plan their capacity.").format(employee),
-			frappe.ValidationError,
+		raise frappe.ValidationError(
+			_("Set a Holiday List on Employee {0} or its Company to plan their capacity.").format(employee)
 		)
 	covers = frappe.db.get_value("Holiday List", holiday_list, ["from_date", "to_date"], as_dict=True)
 	if getdate(start) < getdate(covers.from_date) or getdate(end) > getdate(covers.to_date):
-		frappe.throw(
+		raise frappe.ValidationError(
 			_("Holiday List {0} covers {1} to {2}; extend it to plan {3} to {4}.").format(
 				holiday_list, covers.from_date, covers.to_date, start, end
-			),
-			frappe.ValidationError,
+			)
 		)
 	return set(
 		frappe.get_all(
@@ -136,18 +139,24 @@ def available_hours(employee: str, start, end) -> float:
 	return sum(days.values()) * flt(person.daily_hours)
 
 
-def _booked_by_date(employee: str, start, end) -> dict:
-	"""Confirmed booking hours per calendar day from submitted allocations."""
-	booked = {}
-	for row in frappe.get_all(
+def _bookings(employee: str, start, end) -> list:
+	return frappe.get_all(
 		"Vellox Resource Allocation",
 		filters={"employee": employee, "docstatus": 1, "from_date": ["<=", end], "to_date": [">=", start]},
 		fields=["from_date", "to_date", "hours_per_week"],
-	):
-		per_day = flt(row.hours_per_week) / 7
-		for day in _days(max(getdate(row.from_date), getdate(start)), min(getdate(row.to_date), getdate(end))):
-			booked[day] = booked.get(day, 0) + per_day
-	return booked
+	)
+
+
+def _booked_in_week(bookings: list, week: list, workdays: set) -> float:
+	"""Each booking's weekly hours x the share of the week's working days it covers."""
+	week_workdays = [d for d in week if d in workdays]
+	if not week_workdays:
+		return 0
+	total = 0
+	for row in bookings:
+		covered = sum(1 for d in week_workdays if getdate(row.from_date) <= d <= getdate(row.to_date))
+		total += flt(row.hours_per_week) * covered / len(week_workdays)
+	return total
 
 
 def _first_monday(from_day):
@@ -166,14 +175,19 @@ def weekly_capacity(employee: str, from_day, weeks: int) -> list[dict]:
 	first = _first_monday(from_day)
 	last = add_days(first, 7 * weeks - 1)
 	days, person = _working_days_by_date(employee, first, last)
-	booked = _booked_by_date(employee, first, last)
+	bookings = _bookings(employee, first, last)
+	# Working days ignoring leave and employment dates: they weigh bookings only.
+	workdays = set()
+	if bookings:
+		holidays = _holidays(employee, first, last)
+		workdays = {d for d in _days(first, last) if d not in holidays}
 	result = []
 	for n in range(weeks):
 		week_start = add_days(first, 7 * n)
 		week = list(_days(week_start, add_days(week_start, 6)))
 		working = sum(days[d] for d in week)
 		hours = working * flt(person.daily_hours)
-		confirmed = round(sum(booked.get(d, 0) for d in week), 2)
+		confirmed = round(_booked_in_week(bookings, week, workdays), 2)
 		result.append(
 			{
 				"week_start": week_start,
@@ -199,9 +213,10 @@ def warn_if_overbooked(employee: str, from_date, to_date) -> None:
 		return
 	over = [row for row in rows if row["overbooked_hours"] > 0]
 	if over:
+		name = frappe.db.get_value("Employee", employee, "employee_name") or employee
 		weeks_text = ", ".join(f"{row['week_start']} (+{row['overbooked_hours']} h)" for row in over)
 		frappe.msgprint(
-			_("{0} is overbooked in the week(s) starting {1}.").format(employee, weeks_text),
+			_("{0} is overbooked in the week(s) starting {1}.").format(name, weeks_text),
 			title=_("Overbooked"),
 			indicator="orange",
 		)
@@ -210,7 +225,7 @@ def warn_if_overbooked(employee: str, from_date, to_date) -> None:
 def likely_demand(from_day, weeks: int) -> dict[str, list[dict]]:
 	"""Likely hours per role and week from open opportunities (never confirmed demand)."""
 	from vellox_agency.pipeline import CLOSED_STATUSES
-	from vellox_agency.setup.practice_templates import get_steps
+	from vellox_agency.setup import practice_templates
 
 	_check_weeks(weeks)
 	first = _first_monday(from_day)
@@ -245,7 +260,9 @@ def likely_demand(from_day, weeks: int) -> dict[str, list[dict]]:
 			template = templates.get(item.item_code)
 			if not template:
 				continue
-			steps = steps_by_template.setdefault(template, get_steps(template))
+			if template not in steps_by_template:
+				steps_by_template[template] = practice_templates.get_steps(template)
+			steps = steps_by_template[template]
 			total_days = sum(flt(s.est_days) for s in steps)
 			if not total_days:
 				continue
@@ -253,7 +270,8 @@ def likely_demand(from_day, weeks: int) -> dict[str, list[dict]]:
 			start = _first_monday(opp.expected_closing)
 			role_hours = {}
 			for step in steps:
-				role_hours[step.default_role] = role_hours.get(step.default_role, 0) + flt(step.est_days) * HOURS_PER_TEMPLATE_DAY
+				role = step.default_role or UNASSIGNED_ROLE
+				role_hours[role] = role_hours.get(role, 0) + flt(step.est_days) * HOURS_PER_TEMPLATE_DAY
 			for role, hours in role_hours.items():
 				per_week = hours * probability / duration_weeks
 				row = demand.setdefault(role, [0.0] * weeks)

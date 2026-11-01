@@ -23,12 +23,17 @@ def execute(filters=None):
 	from_date = filters.from_date or nowdate()
 	team_scoped = security._team_scoped(user)
 
-	employee_filters = {"status": "Active"}
+	# Active people, and anyone who leaves inside the window (their days count up to leaving).
+	employee_filters = {"status": ["!=", "Inactive"]}
 	if team_scoped:
 		employee_filters["user_id"] = user
 	rows = []
 	for person in frappe.get_all(
-		"Employee", filters=employee_filters, fields=["name", "employee_name", "designation"], order_by="employee_name"
+		"Employee",
+		filters=employee_filters,
+		or_filters=[["status", "=", "Active"], ["relieving_date", ">=", from_date]],
+		fields=["name", "employee_name", "designation"],
+		order_by="employee_name",
 	):
 		base = {"employee": person.name, "employee_name": person.employee_name, "designation": person.designation}
 		try:

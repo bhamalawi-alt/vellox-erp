@@ -275,11 +275,11 @@ def hide_customer_money(doc, method=None) -> None:
 
 
 def _team_can_access(doc, user: str) -> bool:
+	if doc.doctype == "Vellox Resource Allocation":
+		return frappe.db.get_value("Employee", doc.get("employee"), "user_id") == user
 	members = _member_projects(user)
 	if doc.doctype == "Project":
 		return doc.name in members
-	if doc.doctype == "Vellox Resource Allocation":
-		return frappe.db.get_value("Employee", doc.get("employee"), "user_id") == user
 	if doc.doctype == "Task" and not doc.get("project"):
 		# A task outside any project: theirs if they created it or it is assigned to them.
 		return doc.is_new() or doc.owner == user or user in frappe.parse_json(doc.get("_assign") or "[]")
