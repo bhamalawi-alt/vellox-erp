@@ -308,6 +308,16 @@ def setup_commercial_approval_fields() -> None:
 					"no_copy": 1,
 					"insert_after": "custom_vellox_approved_by",
 				},
+				{
+					# Who last changed the commercial terms; they may not approve them ([P3-144]).
+					"fieldname": "custom_vellox_terms_set_by",
+					"label": "Terms Set By",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"hidden": 1,
+					"no_copy": 1,
+					"insert_after": "custom_vellox_approval_terms",
+				},
 			]
 		},
 		update=True,

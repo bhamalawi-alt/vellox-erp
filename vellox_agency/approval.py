@@ -71,6 +71,30 @@ def _set_approval(doc, status: str, approved_by: str | None, terms: str | None) 
 	doc.custom_vellox_approval_terms = terms
 
 
+def _stamp_terms_setter(doc, terms: str) -> None:
+	"""Remember who last changed the commercial terms; a value sent by a client is dropped."""
+	before = None if doc.is_new() else doc.get_doc_before_save()
+	if before is None:
+		doc.custom_vellox_terms_set_by = frappe.session.user
+	elif _commercial_terms(before) != terms:
+		doc.custom_vellox_terms_set_by = frappe.session.user
+	else:
+		doc.custom_vellox_terms_set_by = before.get("custom_vellox_terms_set_by")
+
+
+def _is_maker(doc) -> bool:
+	"""The quote's creator, or whoever last set its terms (owner, 2026-11-01, [P3-144])."""
+	user = frappe.session.user
+	return user in (doc.get("owner"), doc.get("custom_vellox_terms_set_by"))
+
+
+def _maker_message(required: str) -> str:
+	others = [role for role in APPROVERS[required] if role != "System Manager"]
+	return _("You made this quotation or set its terms, so another {0} must approve it.").format(
+		_(" or ").join(frappe.bold(role) for role in others)
+	)
+
+
 def stamp_approval_on_validate(doc, method=None) -> None:
 	"""Keep the approval fields honest on every save.
 
@@ -88,11 +112,14 @@ def stamp_approval_on_validate(doc, method=None) -> None:
 			_set_approval(doc, "Pending", None, None)
 
 	terms = _commercial_terms(doc)
+	_stamp_terms_setter(doc, terms)
 	if doc.flags.vellox_approving:
 		# Totals are recalculated on save; the approver must cover the tier they produce.
 		required = required_approver_role(doc)
 		if required and not _is_approver(required):
 			frappe.throw(_("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError)
+		if _is_maker(doc):
+			frappe.throw(_maker_message(required), frappe.PermissionError, title=_("Cannot approve own quotation"))
 		doc.custom_vellox_approval_terms = terms
 	elif required_approver_role(doc) is None:
 		if doc.custom_vellox_approval_status != "Approved" or doc.custom_vellox_approved_by == "auto":
@@ -130,12 +157,8 @@ def _approval_refusal(doc) -> tuple[str, type[Exception]] | None:
 		return _("This quotation is already approved."), frappe.ValidationError
 	if not _is_approver(required):
 		return _("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError
-	# The maker does not approve their own quote (owner, 2026-11-01, [P3-144]).
-	if doc.get("owner") == frappe.session.user and frappe.session.user != "Administrator":
-		return (
-			_("You made this quotation, so someone else in {0} must approve it.").format(frappe.bold(required)),
-			frappe.PermissionError,
-		)
+	if _is_maker(doc):
+		return _maker_message(required), frappe.PermissionError
 	return None
 
 
@@ -194,7 +217,9 @@ def approve_quotation(quotation: str, seen: str | None = None):
 		frappe.throw(message, exc)
 	if not _is_version_seen(doc, seen):
 		frappe.throw(
-			_("This quotation changed since you opened it. Reload it and review the changes before approving."),
+			_("{0} changed this quotation {1}, after you opened it. Reload it and review the changes before approving.").format(
+				frappe.bold(frappe.utils.get_fullname(doc.modified_by)), frappe.utils.pretty_date(doc.modified)
+			),
 			frappe.ValidationError,
 			title=_("Quotation changed"),
 		)

@@ -318,7 +318,7 @@ class TestApprovalSafeguards(_JobUsersCase):
 		with self.set_user(self.users["Operations"]):
 			quote = _ops_tier_quote()
 			self.assertFalse(quotation_actions(frappe.get_doc("Quotation", quote.name))["can_approve"])
-		with self.assertRaisesRegex(frappe.PermissionError, "someone else"):
+		with self.assertRaisesRegex(frappe.PermissionError, "made this quotation"):
 			self._approve("Operations", quote.name)
 		self._approve("Agency Manager", quote.name)
 		self.assertEqual(
@@ -343,3 +343,34 @@ class TestApprovalSafeguards(_JobUsersCase):
 					self._approve("Operations", quote.name, seen=seen)
 		self._approve("Operations", quote.name)
 		self.assertEqual(frappe.db.get_value("Quotation", quote.name, "custom_vellox_approval_status"), "Approved")
+
+	def test_whoever_last_set_the_terms_cannot_approve_them(self):
+		quote = _ops_tier_quote()  # made by Administrator
+		with self.set_user(self.users["Operations"]):
+			doc = frappe.get_doc("Quotation", quote.name)
+			doc.additional_discount_percentage = 12
+			doc.save()
+		with self.assertRaisesRegex(frappe.PermissionError, "set its terms"):
+			self._approve("Operations", quote.name)
+		self._approve("Agency Manager", quote.name)
+
+	def test_a_change_outside_the_terms_does_not_make_someone_the_maker(self):
+		quote = _ops_tier_quote()
+		with self.set_user(self.users["Operations"]):
+			doc = frappe.get_doc("Quotation", quote.name)
+			doc.terms = "Payment within 30 days."
+			doc.save()
+		self._approve("Operations", quote.name)
+
+	def test_an_agency_manager_cannot_approve_their_own_manager_tier_quote(self):
+		with self.set_user(self.users["Agency Manager"]):
+			quote = _manager_tier_quote()
+		with self.assertRaisesRegex(frappe.PermissionError, "Agency Manager"):
+			self._approve("Agency Manager", quote.name)
+
+	def test_administrator_is_not_exempt(self):
+		from vellox_agency.approval import approve_quotation
+
+		quote = _ops_tier_quote()  # made by Administrator
+		with self.assertRaises(frappe.PermissionError):
+			approve_quotation(quote.name, seen=str(frappe.db.get_value("Quotation", quote.name, "modified")))
