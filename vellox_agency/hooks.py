@@ -148,6 +148,7 @@ JOB_ACCESS_DOCTYPES = (
 	"Activity Cost",
 	"Sales Invoice",
 	"Payment Entry",
+	"Vellox Resource Allocation",
 	"Sales Order",
 	"Delivery Note",
 	"POS Invoice",

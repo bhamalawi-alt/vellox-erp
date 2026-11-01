@@ -1,0 +1,42 @@
+{
+ "actions": [],
+ "autoname": "format:RA-{YYYY}-{#####}",
+ "creation": "2026-11-01 00:00:00.000000",
+ "description": "A confirmed booking of one person on a project for so many hours a week (capacity plan, P4-32).",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["employee", "employee_name", "project", "task", "column_break_1", "from_date", "to_date", "hours_per_week", "notes", "amended_from"],
+ "fields": [
+  {"fieldname": "employee", "label": "Employee", "fieldtype": "Link", "options": "Employee", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "employee_name", "label": "Employee Name", "fieldtype": "Data", "fetch_from": "employee.employee_name", "read_only": 1},
+  {"fieldname": "project", "label": "Project", "fieldtype": "Link", "options": "Project", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "task", "label": "Task", "fieldtype": "Link", "options": "Task", "description": "Optional; must belong to the project."},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "from_date", "label": "From", "fieldtype": "Date", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "to_date", "label": "To", "fieldtype": "Date", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "hours_per_week", "label": "Hours per Week", "fieldtype": "Float", "reqd": 1, "non_negative": 1, "in_list_view": 1},
+  {"fieldname": "notes", "label": "Notes", "fieldtype": "Small Text"},
+  {"fieldname": "amended_from", "label": "Amended From", "fieldtype": "Link", "options": "Vellox Resource Allocation", "read_only": 1, "no_copy": 1, "print_hide": 1}
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-11-01 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vellox Agency Projects",
+ "name": "Vellox Resource Allocation",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "submit": 1, "cancel": 1, "amend": 1, "report": 1},
+  {"role": "Agency Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "submit": 1, "cancel": 1, "amend": 1, "report": 1},
+  {"role": "Vellox Project Manager", "read": 1, "write": 1, "create": 1, "submit": 1, "cancel": 1, "amend": 1, "report": 1},
+  {"role": "Vellox Operations", "read": 1, "write": 1, "create": 1, "submit": 1, "cancel": 1, "amend": 1, "report": 1},
+  {"role": "Vellox Finance", "read": 1, "report": 1},
+  {"role": "Vellox Team Member", "read": 1},
+  {"role": "Agency Staff", "read": 1}
+ ],
+ "sort_field": "from_date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}
