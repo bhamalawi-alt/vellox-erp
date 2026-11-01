@@ -151,6 +151,24 @@ class TestMoneyRoutes(_RatesCase):
 				self.assertTrue(can_run_report(report, FINANCE))
 		self.assertTrue(can_run_report("Project Summary", PM))  # hours and progress only
 
+	def test_a_renamed_copy_of_a_money_report_is_blocked_too(self):
+		from vellox_agency.report_guard import can_run_report
+
+		copy = frappe.get_doc(
+			{
+				"doctype": "Report",
+				"report_name": f"_Test PBS Copy {frappe.generate_hash(length=6)}",
+				"report_type": "Custom Report",
+				"reference_report": "Project Billing Summary",
+				"ref_doctype": "Timesheet",
+				"module": "Vellox Agency",
+				"is_standard": "No",
+				"json": "{}",
+			}
+		).insert(ignore_permissions=True)
+		self.assertFalse(can_run_report(copy.name, PM))
+		self.assertTrue(can_run_report(copy.name, FINANCE))
+
 	def test_project_expense_claim_totals_are_hidden(self):
 		meta = frappe.get_meta("Project")
 		if not meta.get_field("total_expense_claim"):
@@ -234,8 +252,20 @@ class TestTimesheetRates(_RatesCase):
 		row = frappe.get_doc("Timesheet", ts.name).time_logs[0]
 		self.assertEqual((row.activity_type, row.costing_rate, row.billing_rate), ("Designer", 11, 22))
 
-	def test_finance_may_set_a_special_rate(self):
-		with self.set_user(FINANCE):
-			ts = self._timesheet("Developer", costing_rate=50, billing_rate=120).insert(ignore_permissions=True)
-		row = frappe.get_doc("Timesheet", ts.name).time_logs[0]
+	def _special_rate_timesheet(self):
+		# Finance only views timesheets, so special rates come from a job with rate
+		# access that edits them: the Agency Manager (here, a user with no job cap).
+		return self._timesheet("Developer", costing_rate=50, billing_rate=120).insert(ignore_permissions=True)
+
+	def test_a_job_with_rate_access_may_set_a_special_rate(self):
+		row = frappe.get_doc("Timesheet", self._special_rate_timesheet().name).time_logs[0]
 		self.assertEqual((row.costing_rate, row.billing_rate), (50, 120))
+
+	def test_a_pm_editing_an_unchanged_row_keeps_its_special_rate(self):
+		ts = self._special_rate_timesheet()
+		with self.set_user(PM):
+			doc = frappe.get_doc("Timesheet", ts.name)
+			doc.note = "reviewed"
+			doc.save(ignore_permissions=True)
+		row = frappe.get_doc("Timesheet", ts.name).time_logs[0]
+		self.assertEqual((row.costing_rate, row.billing_rate, row.costing_amount), (50, 120, 150))

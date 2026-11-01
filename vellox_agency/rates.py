@@ -64,12 +64,24 @@ def make_sales_invoice(**kwargs):
 
 
 def rederive_timesheet_rates(doc, method=None) -> None:
-	"""Timesheet validate, after ERPNext's own: rates come from Activity Cost for other jobs."""
+	"""Timesheet validate, after ERPNext's own: rates come from Activity Cost for other jobs.
+
+	New rows, and rows whose activity or employee changed, get the Activity Cost
+	rate. Unchanged rows keep their saved rate, so a special rate set by a job
+	with rate access survives other people's edits.
+	"""
 	if sees_rates():
 		return
+	before = None if doc.is_new() else doc.get_doc_before_save()
+	saved = {row.name: row for row in (before.time_logs if before else []) if row.name}
+	same_employee = bool(before) and before.employee == doc.employee
 	for row in doc.time_logs:
-		row.costing_rate = 0
-		row.billing_rate = 0
+		old = saved.get(row.name)
+		if old and same_employee and old.activity_type == row.activity_type:
+			row.costing_rate, row.billing_rate = old.costing_rate, old.billing_rate
+		else:
+			row.costing_rate = 0
+			row.billing_rate = 0
 	doc.update_cost()
 	doc.calculate_total_amounts()
 	doc.calculate_percentage_billed()
