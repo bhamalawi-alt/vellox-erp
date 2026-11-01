@@ -309,10 +309,10 @@ def setup_commercial_approval_fields() -> None:
 					"insert_after": "custom_vellox_approved_by",
 				},
 				{
-					# Who last changed the commercial terms; they may not approve them ([P3-144]).
+					# Everyone who changed the commercial terms, one per line; none may approve ([P3-144]).
 					"fieldname": "custom_vellox_terms_set_by",
 					"label": "Terms Set By",
-					"fieldtype": "Data",
+					"fieldtype": "Small Text",
 					"read_only": 1,
 					"hidden": 1,
 					"no_copy": 1,

@@ -374,3 +374,29 @@ class TestApprovalSafeguards(_JobUsersCase):
 		quote = _ops_tier_quote()  # made by Administrator
 		with self.assertRaises(frappe.PermissionError):
 			approve_quotation(quote.name, seen=str(frappe.db.get_value("Quotation", quote.name, "modified")))
+
+	def test_a_later_small_change_does_not_clear_an_earlier_setter(self):
+		quote = _ops_tier_quote()
+		with self.set_user(self.users["Operations"]):
+			doc = frappe.get_doc("Quotation", quote.name)
+			doc.additional_discount_percentage = 12
+			doc.save()
+		with self.set_user(self.users["Sales"]):
+			doc = frappe.get_doc("Quotation", quote.name)
+			doc.additional_discount_percentage = 12.5
+			doc.save()
+		with self.assertRaises(frappe.PermissionError):
+			self._approve("Operations", quote.name)
+
+	def test_a_client_cannot_clear_the_setters(self):
+		quote = _ops_tier_quote()
+		with self.set_user(self.users["Operations"]):
+			doc = frappe.get_doc("Quotation", quote.name)
+			doc.additional_discount_percentage = 12
+			doc.save()
+			doc = frappe.get_doc("Quotation", quote.name)
+			doc.custom_vellox_terms_set_by = ""
+			doc.terms = "Note"
+			doc.save()
+		with self.assertRaises(frappe.PermissionError):
+			self._approve("Operations", quote.name)

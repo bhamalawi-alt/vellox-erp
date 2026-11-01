@@ -72,20 +72,26 @@ def _set_approval(doc, status: str, approved_by: str | None, terms: str | None) 
 
 
 def _stamp_terms_setter(doc, terms: str) -> None:
-	"""Remember who last changed the commercial terms; a value sent by a client is dropped."""
+	"""Remember everyone who changed the commercial terms; a value sent by a client is dropped."""
 	before = None if doc.is_new() else doc.get_doc_before_save()
-	if before is None:
-		doc.custom_vellox_terms_set_by = frappe.session.user
-	elif _commercial_terms(before) != terms:
-		doc.custom_vellox_terms_set_by = frappe.session.user
-	else:
-		doc.custom_vellox_terms_set_by = before.get("custom_vellox_terms_set_by")
+	setters = _terms_setters(before) if before else []
+	if before is None or _commercial_terms(before) != terms:
+		setters = [*setters, frappe.session.user] if frappe.session.user not in setters else setters
+	doc.custom_vellox_terms_set_by = "\n".join(setters)
+
+
+def _terms_setters(doc) -> list[str]:
+	return [user for user in (doc.get("custom_vellox_terms_set_by") or "").splitlines() if user]
 
 
 def _is_maker(doc) -> bool:
-	"""The quote's creator, or whoever last set its terms (owner, 2026-11-01, [P3-144])."""
+	"""The quote's creator, or anyone who changed its terms (owner, 2026-11-01, [P3-144]).
+
+	Everyone is kept, not only the last, so a second person's small change does
+	not let the first approve their own discount.
+	"""
 	user = frappe.session.user
-	return user in (doc.get("owner"), doc.get("custom_vellox_terms_set_by"))
+	return user == doc.get("owner") or user in _terms_setters(doc)
 
 
 def _maker_message(required: str) -> str:
@@ -118,7 +124,7 @@ def stamp_approval_on_validate(doc, method=None) -> None:
 		required = required_approver_role(doc)
 		if required and not _is_approver(required):
 			frappe.throw(_("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError)
-		if _is_maker(doc):
+		if required and _is_maker(doc):
 			frappe.throw(_maker_message(required), frappe.PermissionError, title=_("Cannot approve own quotation"))
 		doc.custom_vellox_approval_terms = terms
 	elif required_approver_role(doc) is None:
