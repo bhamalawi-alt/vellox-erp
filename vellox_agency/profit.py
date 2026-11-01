@@ -224,7 +224,7 @@ def refresh_project_profit() -> None:
 	for name, message in errors.items():
 		# An old colour would look current: clear it until the check works again.
 		frappe.db.set_value(
-			"Project", name, dict(zip(STORED, ("", 0, 0, today), strict=True)), update_modified=False
+			"Project", name, dict(zip(STORED[:3], ("", 0, 0), strict=True)), update_modified=False
 		)
 		frappe.log_error(title=_("Vellox profit check skipped {0}").format(name), message=message)
 
