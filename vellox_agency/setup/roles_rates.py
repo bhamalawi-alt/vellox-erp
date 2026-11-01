@@ -31,6 +31,7 @@ MONEY_FIELDS = {
 			"total_billed_amount",
 			"total_consumed_material_cost",
 			"gross_margin",
+			"total_expense_claim",  # added by Frappe HR
 		),
 	),
 	"Task": (1, ("total_costing_amount", "total_billing_amount", "total_expense_claim")),

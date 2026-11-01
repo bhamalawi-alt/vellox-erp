@@ -122,3 +122,120 @@ class TestMoneyStaysWithFinance(_RatesCase):
 			),
 			["vellox_agency.rates.get_activity_cost"],
 		)
+
+
+class TestMoneyRoutes(_RatesCase):
+	"""Routes that returned money despite the hidden fields (review of 378ffb3)."""
+
+	def test_timesheet_helpers_that_return_amounts_are_for_finance(self):
+		from vellox_agency import rates
+
+		for name in ("get_projectwise_timesheet_data", "get_timesheet_data", "get_timesheet_detail_rate", "make_sales_invoice"):
+			with self.subTest(route=name), self.set_user(PM):
+				with patch.object(rates, "_original", side_effect=AssertionError("data read")):
+					with self.assertRaises(frappe.PermissionError):
+						getattr(rates, name)()
+		overrides = frappe.get_hooks("override_whitelisted_methods")
+		for name in ("get_projectwise_timesheet_data", "get_timesheet_data", "get_timesheet_detail_rate", "make_sales_invoice"):
+			with self.subTest(hook=name):
+				self.assertEqual(
+					overrides.get(f"erpnext.projects.doctype.timesheet.timesheet.{name}"), [f"vellox_agency.rates.{name}"]
+				)
+
+	def test_billing_and_profit_reports_are_for_finance(self):
+		from vellox_agency.report_guard import can_run_report
+
+		for report in ("Project Billing Summary", "Employee Billing Summary", "Project Profitability", "Project wise Stock Tracking"):
+			with self.subTest(report=report):
+				self.assertFalse(can_run_report(report, PM))
+				self.assertTrue(can_run_report(report, FINANCE))
+		self.assertTrue(can_run_report("Project Summary", PM))  # hours and progress only
+
+	def test_project_expense_claim_totals_are_hidden(self):
+		meta = frappe.get_meta("Project")
+		if not meta.get_field("total_expense_claim"):
+			self.skipTest("Frappe HR's total_expense_claim is not on this site")
+		with self.set_user(PM):
+			readable = set(frappe.new_doc("Project").get_permlevel_access("read"))
+		self.assertNotIn(meta.get_field("total_expense_claim").permlevel, readable)
+
+	def test_saving_through_the_client_api_returns_no_hidden_money(self):
+		from vellox_agency.client_guard import save, set_value
+
+		project = frappe.get_doc(
+			{"doctype": "Project", "project_name": f"_Test RR {frappe.generate_hash(length=6)}", "company": "_Test Company"}
+		).insert(ignore_permissions=True)
+		# estimated_costing is typed in, so a save does not recalculate it.
+		project.db_set("estimated_costing", 1234)
+		# Frappe's filter empties hidden fields (as the desk form does).
+		with self.set_user(PM):
+			returned = set_value("Project", project.name, "notes", "checked")
+			self.assertFalse(returned.get("estimated_costing"))
+			doc = frappe.get_doc("Project", project.name).as_dict()
+			self.assertFalse(save(doc).get("estimated_costing"))
+		self.assertEqual(frappe.db.get_value("Project", project.name, "estimated_costing"), 1234)
+		# Finance views projects (it does not edit them) and keeps the amounts.
+		from vellox_agency.client_guard import _readable
+
+		with self.set_user(FINANCE):
+			self.assertEqual(_readable(frappe.get_doc("Project", project.name).as_dict()).get("estimated_costing"), 1234)
+
+
+class TestTimesheetRates(_RatesCase):
+	"""Rates come from Activity Cost for jobs that cannot see them (review of 378ffb3)."""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		from vellox_agency.tests.test_capacity import _employee
+
+		if not frappe.db.exists("Gender", "Female"):
+			frappe.get_doc({"doctype": "Gender", "gender": "Female"}).insert(ignore_permissions=True)
+		cls.employee = _employee("RR Dev").name
+		for activity, cost, bill in (("Developer", 41, 97), ("Designer", 11, 22)):
+			frappe.db.set_value("Activity Type", activity, {"costing_rate": cost, "billing_rate": bill})
+		frappe.get_doc(
+			{"doctype": "Activity Cost", "employee": cls.employee, "activity_type": "Developer", "costing_rate": 41, "billing_rate": 97}
+		).insert(ignore_permissions=True)
+
+	_slot = 0
+
+	def _next_slot(self):
+		# A new day per timesheet: ERPNext refuses overlapping time for one employee.
+		TestTimesheetRates._slot += 1
+		return f"2026-11-{9 + TestTimesheetRates._slot:02d} 09:00:00"
+
+	def _timesheet(self, activity, **row):
+		return frappe.get_doc(
+			{
+				"doctype": "Timesheet",
+				"employee": self.employee,
+				"company": "_Test Company",
+				"time_logs": [
+					{"activity_type": activity, "from_time": self._next_slot(), "hours": 3, "is_billable": 1, **row}
+				],
+			}
+		)
+
+	def test_a_rate_typed_in_by_a_pm_is_replaced_by_the_real_one(self):
+		with self.set_user(PM):
+			ts = self._timesheet("Developer", costing_rate=999, billing_rate=999).insert(ignore_permissions=True)
+		row = frappe.get_doc("Timesheet", ts.name).time_logs[0]
+		self.assertEqual((row.costing_rate, row.billing_rate, row.costing_amount), (41, 97, 123))
+
+	def test_changing_the_activity_takes_the_new_activitys_rate(self):
+		ts = self._timesheet("Developer").insert(ignore_permissions=True)
+		with self.set_user(PM):
+			doc = frappe.get_doc("Timesheet", ts.name)
+			doc.time_logs[0].activity_type = "Designer"
+			doc.time_logs[0].costing_rate = 0
+			doc.time_logs[0].billing_rate = 0
+			doc.save(ignore_permissions=True)
+		row = frappe.get_doc("Timesheet", ts.name).time_logs[0]
+		self.assertEqual((row.activity_type, row.costing_rate, row.billing_rate), ("Designer", 11, 22))
+
+	def test_finance_may_set_a_special_rate(self):
+		with self.set_user(FINANCE):
+			ts = self._timesheet("Developer", costing_rate=50, billing_rate=120).insert(ignore_permissions=True)
+		row = frappe.get_doc("Timesheet", ts.name).time_logs[0]
+		self.assertEqual((row.costing_rate, row.billing_rate), (50, 120))

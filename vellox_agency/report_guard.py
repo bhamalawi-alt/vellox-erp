@@ -19,6 +19,12 @@ from vellox_agency import security
 
 MAX_REFERENCE_DEPTH = 10
 
+# Reports on records a job may see that still show billing, cost, salary or
+# profit amounts ([P4-31]): Finance and the Agency Manager only.
+MONEY_REPORTS = frozenset(
+	{"Project Billing Summary", "Employee Billing Summary", "Project Profitability", "Project wise Stock Tracking"}
+)
+
 
 def report_doctype(report_name: str) -> str | None:
 	"""The record type a report shows; a Custom Report shows its original report's.
@@ -45,6 +51,11 @@ def can_run_report(report_name: str, user: str | None = None) -> bool:
 		return False  # unknown, or a reference chain that does not end
 	if security.access_level(doctype, user) in (security.NONE, security.LINK):
 		return False
+	if report_name in MONEY_REPORTS:
+		from vellox_agency.rates import sees_rates
+
+		if not sees_rates(user):
+			return False
 	return not (security._team_scoped(user) and doctype in security.TEAM_SCOPED_DOCTYPES)
 
 
