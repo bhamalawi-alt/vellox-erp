@@ -30,7 +30,7 @@ Owner decisions (2026-11-01):
 
 | Concept | Record | Vellox addition |
 |---|---|---|
-| Person (employee or freelancer) | HRMS **Employee**. Freelancers get `employment_type = "Contract"` | `custom_vellox_daily_hours` (default 8), `custom_vellox_utilization_target` (default 75), `custom_vellox_seniority` (Junior / Mid / Senior) |
+| Person (employee or freelancer) | **Employee**. Freelancers get Employment Type "Contract" (a field Frappe HR adds; to check once HRMS is installed in P4-102) | `custom_vellox_daily_hours` (default 8), `custom_vellox_utilization_target` (default 75), `custom_vellox_seniority` (Junior / Mid / Senior) |
 | Delivery role | ERPNext **Designation** on the Employee; the same names as the practice-step `default_role` (Designer, Developer, Strategist, …) | none |
 | Skills | HRMS **Employee Skill Map** (Skill + proficiency) | none; replaces the prototype `Skill` / `Skill Employee` DocTypes |
 | Working days | **Holiday List** on the Employee, else on the Company | none |
