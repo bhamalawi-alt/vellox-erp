@@ -25,7 +25,12 @@ MAX_REFERENCE_DEPTH = 10
 SELF_SCOPED_REPORTS = frozenset({"Vellox Team Capacity"})
 
 MONEY_REPORTS = frozenset(
-	{"Project Billing Summary", "Employee Billing Summary", "Project Profitability", "Project wise Stock Tracking"}
+	{
+		"Project Billing Summary",
+		"Employee Billing Summary",
+		"Project Profitability",
+		"Project wise Stock Tracking",
+	}
 )
 
 
@@ -82,11 +87,35 @@ def _original(fn, **kwargs):
 	return frappe.call(fn, **kwargs)
 
 
+def _require_readable_columns(report_name: str | None, custom_columns=None) -> None:
+	"""Custom columns, sent now or saved on a Custom Report, may not compute hidden fields ([P4-34])."""
+	from vellox_agency.api_guard import refuse_hidden_report_columns
+
+	refuse_hidden_report_columns(custom_columns)
+	if report_name and frappe.db.get_value("Report", report_name, "report_type") == "Custom Report":
+		refuse_hidden_report_columns(query_report.get_report_doc(report_name).get("custom_columns"))
+
+
 @frappe.whitelist()
 @frappe.read_only()
 def run(report_name: str, **kwargs):
 	require_report_access(report_name)
+	_require_readable_columns(report_name, kwargs.get("custom_columns"))
 	return _original(query_report.run, report_name=report_name, **kwargs)
+
+
+@frappe.whitelist()
+def save_report(reference_report: str, report_name: str, columns: str, filters: str):
+	"""Saving a Custom Report keeps its columns for later runs."""
+	require_report_access(reference_report)
+	_require_readable_columns(None, columns)
+	return _original(
+		query_report.save_report,
+		reference_report=reference_report,
+		report_name=report_name,
+		columns=columns,
+		filters=filters,
+	)
 
 
 @frappe.whitelist()
@@ -101,4 +130,5 @@ def make_prepared_report(report_name: str, **kwargs):
 	from frappe.core.doctype.prepared_report import prepared_report
 
 	require_report_access(report_name)
+	_require_readable_columns(report_name, kwargs.get("custom_columns"))
 	return _original(prepared_report.make_prepared_report, report_name=report_name, **kwargs)

@@ -140,14 +140,37 @@ def _table_doctype(doctype: str, table: str) -> str | None:
 
 
 def refuse_hidden_order(doctype, *orders, parent=None) -> None:
-	"""Sorting or grouping by a hidden field, in any letter case (Frappe matches exact case only)."""
+	"""Sorting or grouping by a hidden field, in any letter case (Frappe matches exact case only).
+
+	Read whole, as Frappe reads it, so a formula with a comma is not cut in two.
+	"""
+	from frappe.desk.reportview import extract_fieldnames
+
 	for order in orders:
 		if not isinstance(order, str) or not order.strip():
 			continue
-		parts = [
-			re.sub(r"\s+(asc|desc)\s*$", "", part.strip(), flags=re.IGNORECASE) for part in order.split(",")
-		]
-		refuse_hidden_fields(doctype, [p for p in parts if p], parent)
+		text = re.sub(r"\b(asc|desc)\b", " ", order, flags=re.IGNORECASE)
+		columns = [c for c in extract_fieldnames(text) if isinstance(c, str)]
+		if not columns and "(" in text:
+			raise frappe.PermissionError(
+				_("Not permitted to sort or group by {0}").format(frappe.bold(order))
+			)
+		refuse_hidden_fields(doctype, columns, parent)
+
+
+def refuse_hidden_report_columns(columns) -> None:
+	"""Custom report columns are read with a list query per column; refuse hidden formulas.
+
+	A column may name a field as "fieldname-doctype" when names clash
+	(query_report.add_custom_column_data); the part before "-" is the field.
+	"""
+	columns = _parsed(columns)
+	if not isinstance(columns, list):
+		return
+	for column in columns:
+		if isinstance(column, dict) and column.get("doctype") and isinstance(column.get("fieldname"), str):
+			fieldname = column["fieldname"].split("-")[0]
+			refuse_hidden_fields(column["doctype"], [fieldname], only_formulas=True)
 
 
 def refuse_hidden_query(
@@ -513,6 +536,7 @@ def get_group_by_count(doctype, current_filters, field):
 def search_link(doctype, txt, filters=None, **kwargs):
 	from frappe.desk import search
 
+	_route_query_through_guard(kwargs, doctype)
 	refuse_hidden_filters(doctype, filters)
 	refuse_hidden_fields(doctype, [kwargs.get("searchfield")] if kwargs.get("searchfield") else None)
 	return frappe.call(search.search_link, doctype, txt, filters=filters, **kwargs)
@@ -522,9 +546,20 @@ def search_link(doctype, txt, filters=None, **kwargs):
 def search_widget(doctype, txt, filters=None, **kwargs):
 	from frappe.desk import search
 
+	_route_query_through_guard(kwargs, doctype)
 	refuse_hidden_filters(doctype, filters)
 	refuse_hidden_fields(doctype, [kwargs.get("searchfield")] if kwargs.get("searchfield") else None)
 	return frappe.call(search.search_widget, doctype, txt, filters=filters, **kwargs)
+
+
+def _route_query_through_guard(kwargs: dict, doctype: str | None = None) -> None:
+	"""search_widget calls a custom or standard `query` by name, past override_whitelisted_methods."""
+	query = kwargs.get("query")
+	if not query and doctype:
+		standard = (frappe.get_hooks().standard_queries or {}).get(doctype)
+		query = standard[-1] if standard else None
+	if isinstance(query, str):
+		kwargs["query"] = frappe.override_whitelisted_method(query)
 
 
 @frappe.whitelist()

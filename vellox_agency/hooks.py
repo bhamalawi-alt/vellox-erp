@@ -348,6 +348,7 @@ override_whitelisted_methods = {
 	"frappe.desk.query_report.run": "vellox_agency.report_guard.run",
 	"frappe.desk.query_report.get_script": "vellox_agency.report_guard.get_script",
 	"frappe.core.doctype.prepared_report.prepared_report.make_prepared_report": "vellox_agency.report_guard.make_prepared_report",
+	"frappe.desk.query_report.save_report": "vellox_agency.report_guard.save_report",
 	# Rates follow job access ([P4-31]); see rates.
 	"erpnext.projects.doctype.timesheet.timesheet.get_activity_cost": "vellox_agency.rates.get_activity_cost",
 	"erpnext.projects.doctype.timesheet.timesheet.get_projectwise_timesheet_data": "vellox_agency.rates.get_projectwise_timesheet_data",

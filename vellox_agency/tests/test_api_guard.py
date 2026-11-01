@@ -486,3 +486,72 @@ class TestSecondReview(_GuardCase):
 		self.assertTrue(
 			{*MONEY_FIELDS, "Quotation", "Project", "Task", "Activity Cost"} <= set(MONEY_DOCTYPES)
 		)
+
+
+class TestThirdReview(_GuardCase):
+	"""Routes found in the third P4-34 review."""
+
+	def test_a_search_query_goes_through_its_guard_whatever_doctype_is_named(self):
+		from vellox_agency import api_guard
+
+		kwargs = {"query": "erpnext.projects.utils.query_task"}
+		api_guard._route_query_through_guard(kwargs, "Note")
+		self.assertEqual(kwargs["query"], "vellox_agency.api_guard.query_task")
+
+		task = frappe.get_doc({"doctype": "Task", "subject": "_Test AG search"}).insert(
+			ignore_permissions=True
+		)
+		task.db_set("total_costing_amount", 1234)
+		with self.set_user(PM_USER):
+			for fn in (api_guard.search_link, api_guard.search_widget):
+				with self.subTest(fn=fn.__name__):
+					# Frappe turns the guard's refusal into an empty answer outside developer mode.
+					try:
+						rows = fn(
+							"Note",
+							"1",
+							query="erpnext.projects.utils.query_task",
+							searchfield="total_costing_amount",
+						)
+					except frappe.PermissionError:
+						rows = []
+					self.assertNotIn(task.name, json.dumps(rows, default=str))
+
+	def test_custom_report_columns_cannot_carry_hidden_formulas(self):
+		from vellox_agency.api_guard import refuse_hidden_report_columns
+
+		column = {"fieldname": "progress + total_costing_amount", "doctype": "Task", "insert_after_index": 0}
+		with self.set_user(PM_USER):
+			for columns in (
+				[column],
+				json.dumps([column]),
+				[{**column, "fieldname": "progress + total_costing_amount-task"}],
+			):
+				with self.subTest(columns=columns):
+					with self.assertRaises(frappe.PermissionError):
+						refuse_hidden_report_columns(columns)
+			refuse_hidden_report_columns([{**column, "fieldname": "subject"}])
+
+	def test_report_runs_and_saves_check_their_columns(self):
+		from vellox_agency import report_guard
+
+		column = json.dumps(
+			[{"fieldname": "progress + total_costing_amount", "doctype": "Task", "insert_after_index": 0}]
+		)
+		with self.set_user(PM_USER):
+			with self.assertRaises(frappe.PermissionError):
+				report_guard.run("Project Summary", custom_columns=column)
+			with self.assertRaises(frappe.PermissionError):
+				report_guard.save_report("Project Summary", "_Test AG saved", column, "{}")
+
+	def test_sort_formulas_with_commas_are_checked_whole(self):
+		from vellox_agency import api_guard
+
+		with self.set_user(PM_USER):
+			with self.assertRaises(frappe.PermissionError):
+				api_guard.get_list(
+					"Project", fields=["name"], order_by="ifnull(TOTAL_COSTING_AMOUNT, 0) desc"
+				)
+			self.assertIsInstance(
+				api_guard.get_list("Project", fields=["name"], order_by="ifnull(modified, 0) desc"), list
+			)
