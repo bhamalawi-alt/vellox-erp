@@ -19,21 +19,32 @@ from vellox_agency import security
 
 MAX_REFERENCE_DEPTH = 10
 
+# Reports on records a job may see that still show billing, cost, salary or
+# profit amounts ([P4-31]): Finance and the Agency Manager only.
+MONEY_REPORTS = frozenset(
+	{"Project Billing Summary", "Employee Billing Summary", "Project Profitability", "Project wise Stock Tracking"}
+)
 
-def report_doctype(report_name: str) -> str | None:
-	"""The record type a report shows; a Custom Report shows its original report's.
 
-	Follows the whole chain of Custom Reports, as Frappe's get_reference_report does.
-	"""
+def original_report(report_name: str) -> frappe._dict | None:
+	"""The report a (chain of) Custom Report(s) is based on, as Frappe's get_reference_report finds it."""
 	name = report_name
 	for _depth in range(MAX_REFERENCE_DEPTH):
-		report = frappe.db.get_value("Report", name, ["ref_doctype", "report_type", "reference_report"], as_dict=True)
+		report = frappe.db.get_value(
+			"Report", name, ["name", "ref_doctype", "report_type", "reference_report"], as_dict=True
+		)
 		if not report:
 			return None
 		if report.report_type != "Custom Report" or not report.reference_report:
-			return report.ref_doctype
+			return report
 		name = report.reference_report
 	return None
+
+
+def report_doctype(report_name: str) -> str | None:
+	"""The record type a report shows; a Custom Report shows its original report's."""
+	report = original_report(report_name)
+	return report.ref_doctype if report else None
 
 
 def can_run_report(report_name: str, user: str | None = None) -> bool:
@@ -45,6 +56,11 @@ def can_run_report(report_name: str, user: str | None = None) -> bool:
 		return False  # unknown, or a reference chain that does not end
 	if security.access_level(doctype, user) in (security.NONE, security.LINK):
 		return False
+	if original_report(report_name).name in MONEY_REPORTS:  # a renamed copy too
+		from vellox_agency.rates import sees_rates
+
+		if not sees_rates(user):
+			return False
 	return not (security._team_scoped(user) and doctype in security.TEAM_SCOPED_DOCTYPES)
 
 

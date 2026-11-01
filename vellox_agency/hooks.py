@@ -73,6 +73,9 @@ doc_events["Task"] = {
 # Customer billing figures: Finance and the Agency Manager only ([P3-142]).
 doc_events["Customer"] = {"onload": "vellox_agency.security.hide_customer_money"}
 
+# Timesheet rates come from Activity Cost for jobs that cannot see rates ([P4-31]).
+doc_events["Timesheet"] = {"validate": "vellox_agency.rates.rederive_timesheet_rates"}
+
 doc_events["Employee"] = {"validate": "vellox_agency.setup.people.validate_capacity_fields"}
 
 doc_events["Lead"] = {
@@ -343,6 +346,18 @@ override_whitelisted_methods = {
 	"frappe.desk.query_report.run": "vellox_agency.report_guard.run",
 	"frappe.desk.query_report.get_script": "vellox_agency.report_guard.get_script",
 	"frappe.core.doctype.prepared_report.prepared_report.make_prepared_report": "vellox_agency.report_guard.make_prepared_report",
+	# Rates follow job access ([P4-31]); see rates.
+	"erpnext.projects.doctype.timesheet.timesheet.get_activity_cost": "vellox_agency.rates.get_activity_cost",
+	"erpnext.projects.doctype.timesheet.timesheet.get_projectwise_timesheet_data": "vellox_agency.rates.get_projectwise_timesheet_data",
+	"erpnext.projects.doctype.timesheet.timesheet.get_timesheet_data": "vellox_agency.rates.get_timesheet_data",
+	"erpnext.projects.doctype.timesheet.timesheet.get_timesheet_detail_rate": "vellox_agency.rates.get_timesheet_detail_rate",
+	"erpnext.projects.doctype.timesheet.timesheet.make_sales_invoice": "vellox_agency.rates.make_sales_invoice",
+	# Write calls return only readable fields ([P4-31]); see client_guard.
+	"frappe.client.set_value": "vellox_agency.client_guard.set_value",
+	"frappe.client.insert": "vellox_agency.client_guard.insert",
+	"frappe.client.save": "vellox_agency.client_guard.save",
+	"frappe.client.submit": "vellox_agency.client_guard.submit",
+	"frappe.client.cancel": "vellox_agency.client_guard.cancel",
 }
 
 # override_whitelisted_methods = {

@@ -148,6 +148,11 @@ Activity Cost moves from Project Manager / Operations edit access to Finance
 and the Agency Manager only (owner, 2026-11-01), so PMs manage by hours and
 percentages, not money.
 
+Built in [P4-31]: for other jobs, timesheet rates always come from Activity
+Cost (a new or changed row is looked up again; an unchanged row keeps its saved
+rate). Finance views timesheets but does not edit them, so a one-off special
+rate on a timesheet row is set by the Agency Manager.
+
 ## 8. Worked example
 
 Project "Web build" (fixed price), quoted at USD 12,000.

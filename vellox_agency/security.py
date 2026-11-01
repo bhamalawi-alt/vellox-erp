@@ -118,7 +118,6 @@ JOB_ACCESS: dict[str, dict[str, str]] = {
 		"Project Template": VIEW,
 		"Task": EDIT,
 		"Timesheet": EDIT,
-		"Activity Cost": EDIT,
 		"Customer": VIEW,
 		"Quotation": VIEW,
 		"Contact": VIEW,
@@ -150,7 +149,6 @@ JOB_ACCESS: dict[str, dict[str, str]] = {
 		"Project Update": EDIT,
 		"Project Template": VIEW,
 		"Task": EDIT,
-		"Activity Cost": EDIT,
 		"Lead": VIEW,
 		"Opportunity": VIEW,
 		"Customer": VIEW,
@@ -472,6 +470,7 @@ def apply_baseline() -> None:
 	)
 	from vellox_agency.setup.commercial import setup_commercial_foundation
 	from vellox_agency.setup.people import setup_people_fields
+	from vellox_agency.setup.roles_rates import setup_delivery_roles
 	from vellox_agency.setup.practice_templates import setup_practice_templates
 	from vellox_agency.setup.offer_builder import setup_offer_builder
 
@@ -490,6 +489,7 @@ def apply_baseline() -> None:
 	setup_sales_notifications()
 	_ensure_client_comment_permission()
 	setup_roles_and_permissions()
+	setup_delivery_roles()
 	revoke_shares_beyond_jobs()
 	_report_lead_routing()
 	_report_missing_hrms()
