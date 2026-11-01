@@ -468,6 +468,19 @@ def setup_job_profiles() -> None:
 		profile.save(ignore_permissions=True)
 
 
+def grant_permlevel(doctype: str, role: str, permlevel: int, right: str) -> None:
+	"""Give `role` `right` at `permlevel` through Custom DocPerm, once."""
+	from frappe.permissions import add_permission, setup_custom_perms, update_permission_property
+
+	filters = {"parent": doctype, "role": role, "permlevel": permlevel, "if_owner": 0}
+	if frappe.db.get_value("Custom DocPerm", filters, right):
+		return
+	setup_custom_perms(doctype)
+	if not frappe.db.exists("Custom DocPerm", filters):
+		add_permission(doctype, role, permlevel)
+	update_permission_property(doctype, role, permlevel, right, 1, validate=False)
+
+
 def apply_baseline() -> None:
 	"""after_migrate hook: reapply offer metadata + least-privilege baseline."""
 	from vellox_agency.crm_setup import (
@@ -480,6 +493,7 @@ def apply_baseline() -> None:
 		setup_quotation_estimate_fields,
 		setup_sales_notifications,
 	)
+	from vellox_agency.api_guard import setup_estimate_access
 	from vellox_agency.profit import setup_profit_fields
 	from vellox_agency.setup.commercial import setup_commercial_foundation
 	from vellox_agency.setup.people import setup_people_fields
@@ -504,6 +518,7 @@ def apply_baseline() -> None:
 	setup_roles_and_permissions()
 	setup_delivery_roles()
 	setup_profit_fields()
+	setup_estimate_access()
 	revoke_shares_beyond_jobs()
 	_report_lead_routing()
 	_report_missing_hrms()

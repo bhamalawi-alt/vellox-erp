@@ -233,3 +233,13 @@ where it applies.
    estimate panel), so with budget used % and margin drift they could work out
    cost to date and the forecast cost by hand. This follows from the access in
    section 7 and is accepted; they never see the amounts directly.
+
+### Answers for [P4-34] (owner, 2026-11-01)
+
+8. **Quote estimate panel** (hours with rates, vendor cost, estimated margin):
+   hidden from Project Managers. Sales, Operations (who approve quotes by
+   margin), Finance and the Agency Manager keep it.
+9. **Filtering on hidden fields**: refused. Lists, counts, single values,
+   sidebar stats and searches (desk and REST) that filter on a field the
+   person cannot read return a permission error, so a hidden amount cannot be
+   narrowed down by repeated questions.

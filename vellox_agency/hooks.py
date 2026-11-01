@@ -360,7 +360,21 @@ override_whitelisted_methods = {
 	"frappe.client.save": "vellox_agency.client_guard.save",
 	"frappe.client.submit": "vellox_agency.client_guard.submit",
 	"frappe.client.cancel": "vellox_agency.client_guard.cancel",
+	# Lists, counts and searches refuse filters on hidden fields ([P4-34]); see api_guard.
+	"frappe.client.get_list": "vellox_agency.api_guard.get_list",
+	"frappe.client.get_count": "vellox_agency.api_guard.get_count",
+	"frappe.client.get_value": "vellox_agency.api_guard.get_value",
+	"frappe.desk.reportview.get": "vellox_agency.api_guard.reportview_get",
+	"frappe.desk.reportview.get_list": "vellox_agency.api_guard.reportview_get_list",
+	"frappe.desk.reportview.get_count": "vellox_agency.api_guard.reportview_get_count",
+	"frappe.desk.reportview.get_sidebar_stats": "vellox_agency.api_guard.get_sidebar_stats",
+	"frappe.desk.listview.get_group_by_count": "vellox_agency.api_guard.get_group_by_count",
+	"frappe.desk.search.search_link": "vellox_agency.api_guard.search_link",
+	"frappe.desk.search.search_widget": "vellox_agency.api_guard.search_widget",
 }
+
+# REST lists refuse hidden filters; REST create and update return only readable fields ([P4-34]).
+after_request = ["vellox_agency.api_guard.after_request"]
 
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "vellox_agency.event.get_events"
