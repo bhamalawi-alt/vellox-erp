@@ -15,6 +15,7 @@ from vellox_agency.security import JOB_PROFILES
 
 PM_USER = "pp-pm@example.com"
 FIN_USER = "pp-finance@example.com"
+OPS_USER = "pp-operations@example.com"
 
 
 def _user(email, roles):
@@ -43,6 +44,7 @@ class _ProfitCase(FrappeTestCase):
 		frappe.db.set_single_value("Projects Settings", "ignore_employee_time_overlap", 1)
 		_user(PM_USER, JOB_PROFILES["Project Manager"])
 		_user(FIN_USER, JOB_PROFILES["Finance"])
+		_user(OPS_USER, JOB_PROFILES["Operations"])
 		cls.people, cls.rates = {}, {}
 		for role, rate in (("Developer", 30), ("Designer", 25), ("Project Manager", 32.5)):
 			user = _user(
@@ -160,7 +162,8 @@ class TestWorkedExample(_ProfitCase):
 
 		# Vendor invoices are standard Purchase Invoices; the example has 450 so far.
 		with patch(
-			"vellox_agency.profit._external_cost", side_effect=lambda names: dict.fromkeys(names, 450)
+			"vellox_agency.profit._external_cost",
+			side_effect=lambda names: ({n: [("USD", "2026-10-08", 450)] for n in names}, {}),
 		):
 			return project_profit(self.project)
 
@@ -187,8 +190,8 @@ class TestWorkedExample(_ProfitCase):
 		from vellox_agency.profit import project_profit
 
 		project = self._project(self._quote()).name
-		amendment = self._quote(3000, estimate=[{"role": "Developer", "hours": 40, "rate": 30}], vendor=0)
 		for status in ("Approved", "Rejected"):
+			amendment = self._quote(3000, estimate=[{"role": "Developer", "hours": 40, "rate": 30}], vendor=0)
 			request = frappe.get_doc(
 				{
 					"doctype": "Vellox Change Request",
@@ -202,6 +205,62 @@ class TestWorkedExample(_ProfitCase):
 		p = project_profit(project)
 		self.assertEqual(p.contract_value, 15000)  # the rejected one is not counted
 		self.assertEqual(p.budget, 7800 + 1200)
+
+	def test_quotes_in_another_currency_use_the_rate_on_their_date(self):
+		from vellox_agency.profit import project_profit, projects_profit
+
+		quote = self._quote()
+		frappe.db.set_value("Quotation", quote.name, {"currency": "EGP", "transaction_date": "2026-10-10"})
+		frappe.get_doc(
+			{
+				"doctype": "Currency Exchange",
+				"date": "2026-10-01",
+				"from_currency": "EGP",
+				"to_currency": "USD",
+				"exchange_rate": 0.02,
+				"for_selling": 1,
+			}
+		).insert(ignore_permissions=True)
+		project = self._project(quote).name
+		p = project_profit(project)
+		self.assertAlmostEqual(p.contract_value, 240)  # 12,000 EGP x 0.02
+		self.assertAlmostEqual(p.budget, 156)
+
+		# A quote dated before any rate: a note for that project, the others still work.
+		older = self._quote()
+		frappe.db.set_value("Quotation", older.name, {"currency": "EGP", "transaction_date": "2026-09-01"})
+		missing = self._project(older).name
+		results, errors = projects_profit([project, missing])
+		self.assertIn(project, results)
+		self.assertIn("exchange rate", errors[missing])
+		self.assertFalse([m for m in frappe.local.message_log if "exchange" in str(m)])  # no pop-ups
+
+	def test_remaining_hours_skip_closed_tasks_and_fall_back_to_the_role_rate(self):
+		from vellox_agency.profit import project_profit
+
+		project = self._project(self._quote(vendor=0)).name
+		self._task(project, "Developer", 10).db_set("status", "Completed")
+		frappe.db.set_value("Activity Type", "Designer", "costing_rate", 20)
+		frappe.get_doc(
+			{
+				"doctype": "Task",
+				"subject": "PP unassigned",
+				"project": project,
+				"custom_vellox_default_role": "Designer",
+				"custom_vellox_remaining_hours": 5,
+			}
+		).insert(ignore_permissions=True)
+		frappe.get_doc(
+			{
+				"doctype": "Task",
+				"subject": "PP no role",
+				"project": project,
+				"custom_vellox_remaining_hours": 3,
+			}
+		).insert(ignore_permissions=True)
+		p = project_profit(project)
+		self.assertEqual(p.remaining_cost, 100)  # 5 h x the Designer default 20; the completed task is out
+		self.assertEqual(p.unpriced_hours, 3)
 
 
 class TestSignal(FrappeTestCase):
@@ -277,7 +336,7 @@ class TestProfitOnProjects(_ProfitCase):
 		self.assertAlmostEqual(stored.custom_vellox_budget_used, 600 / 7800 * 100, places=2)
 		self.assertEqual(stored.custom_vellox_profit_signal, "Green")
 
-	def test_project_managers_read_the_health_fields_and_team_members_do_not(self):
+	def test_operations_reads_the_stored_health_fields_and_pms_and_team_members_do_not(self):
 		from vellox_agency.profit import PROFIT_PERMLEVEL
 
 		meta = frappe.get_meta("Project")
@@ -289,7 +348,10 @@ class TestProfitOnProjects(_ProfitCase):
 			with self.subTest(field=field):
 				self.assertEqual(meta.get_field(field).permlevel, PROFIT_PERMLEVEL)
 		team_user = _user("pp-team@example.com", JOB_PROFILES["Team Member"])
-		self.assertIn(PROFIT_PERMLEVEL, meta.get_permlevel_access("read", user=PM_USER))
+		self.assertIn(PROFIT_PERMLEVEL, meta.get_permlevel_access("read", user=OPS_USER))
+		self.assertIn(PROFIT_PERMLEVEL, meta.get_permlevel_access("read", user=FIN_USER))
+		# PMs edit every project; they see their own projects' figures in the report.
+		self.assertNotIn(PROFIT_PERMLEVEL, meta.get_permlevel_access("read", user=PM_USER))
 		self.assertNotIn(PROFIT_PERMLEVEL, meta.get_permlevel_access("read", user=team_user))
 
 	def test_the_refresh_runs_daily(self):
@@ -345,6 +407,13 @@ class TestProfitReport(_ProfitCase):
 				}
 				& set(row)
 			)
+
+	def test_operations_sees_every_project_without_amounts(self):
+		own = self._project(self._quote())
+		own.db_set("custom_vellox_project_manager", PM_USER)
+		columns, rows = self._run(OPS_USER)
+		self.assertIn(own.name, {r["project"] for r in rows})
+		self.assertNotIn("contract_value", columns)
 
 	def test_team_members_cannot_run_it(self):
 		from vellox_agency.report_guard import can_run_report

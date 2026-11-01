@@ -9,7 +9,7 @@ import frappe
 from frappe import _
 
 from vellox_agency import security
-from vellox_agency.profit import REPORTING_CURRENCY, profit_or_errors
+from vellox_agency.profit import REPORTING_CURRENCY, projects_profit
 from vellox_agency.rates import sees_rates
 
 AMOUNTS = ("contract_value", "budget", "cost_to_date", "remaining_cost", "forecast_cost", "expected_margin")
@@ -37,7 +37,7 @@ def execute(filters=None):
 		fields=["name", "project_name", "custom_vellox_project_manager"],
 		order_by="name",
 	)
-	figures, errors = profit_or_errors([p.name for p in projects])
+	figures, errors = projects_profit([p.name for p in projects])
 
 	rows = []
 	for project in projects:
