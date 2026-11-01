@@ -336,6 +336,9 @@ override_whitelisted_methods = {
 	"frappe.utils.print_format.download_multi_pdf": "vellox_agency.export_guard.download_multi_pdf",
 	"frappe.utils.print_format.download_multi_pdf_async": "vellox_agency.export_guard.download_multi_pdf_async",
 	"frappe.contacts.doctype.contact.contact.download_vcards": "vellox_agency.export_guard.download_vcards",
+	# Reports follow job access ([P3-147]); see report_guard.
+	"frappe.desk.query_report.run": "vellox_agency.report_guard.run",
+	"frappe.desk.query_report.get_script": "vellox_agency.report_guard.get_script",
 }
 
 # override_whitelisted_methods = {

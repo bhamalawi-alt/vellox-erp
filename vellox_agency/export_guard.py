@@ -53,7 +53,10 @@ def export_query():
 @frappe.whitelist()
 def export_report():
 	"""Query and script report export."""
+	from vellox_agency.report_guard import require_report_access
+
 	_require_export()
+	require_report_access(frappe.form_dict.get("report_name"))
 	return _original(query_report.export_query)
 
 
