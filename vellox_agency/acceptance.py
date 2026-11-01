@@ -38,6 +38,8 @@ def _ensure_acceptance_fields() -> None:
 					"label": "Expected Margin % (frozen)",
 					"fieldtype": "Percent",
 					"read_only": 1,
+					# Project money level ([P4-31]): with the quote's hours it would reveal rates ([P3-143]).
+					"permlevel": 2,
 					"insert_after": "custom_vellox_quotation",
 				},
 			],
@@ -141,7 +143,7 @@ def _unique_project_name(base: str) -> str:
 @frappe.whitelist(methods=["POST"])
 def create_project_from_template(template_name: str, customer: str | None = None):
 	"""Create a live Project from a practice template's ordered steps."""
-	from vellox_agency.setup.practice_templates import get_steps, STEPS_DOCTYPE
+	from vellox_agency.setup.practice_templates import STEPS_DOCTYPE, get_steps
 
 	if not set(CREATION_ROLES) & set(frappe.get_roles()):
 		frappe.throw(_("Not permitted to create Projects."), frappe.PermissionError)

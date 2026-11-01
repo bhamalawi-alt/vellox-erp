@@ -245,3 +245,17 @@ where it applies.
    narrowed down by repeated questions. The same applies to a hidden field
    named inside a formula in the requested columns, and every route that sends
    a document back returns only the fields the person may read.
+
+### Answers for [P3-143] (owner, 2026-11-01)
+
+10. **Quote labour cost**: hours are priced at the default cost rate Finance
+    sets on each role's Activity Type; rates typed into the estimate are
+    ignored. A quote with no estimate (no priced hours, no vendor cost) needs at
+    least Operations approval.
+11. **A role with no rate yet**: the draft still saves, with the margin shown
+    as unknown and the role named; approving and submitting wait until Finance
+    sets the rate. Each migrate lists the delivery roles still without a rate.
+12. **Rate privacy**: Sales and Operations see the margin as a band and the
+    approval tier, not the exact margin, which would let anyone who edits hours
+    work out each role's rate. The exact margin, the labour cost and the margin
+    frozen on a project are for Finance and the Agency Manager.

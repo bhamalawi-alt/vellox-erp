@@ -213,10 +213,12 @@ class TestQuoteEstimate(_GuardCase):
 		from vellox_agency.api_guard import ESTIMATE_PERMLEVEL
 
 		meta = frappe.get_meta("Quotation")
+		pm_levels = meta.get_permlevel_access("read", user=PM_USER)
 		for field in self.FIELDS:
 			with self.subTest(field=field):
-				self.assertEqual(meta.get_field(field).permlevel, ESTIMATE_PERMLEVEL)
-		self.assertNotIn(ESTIMATE_PERMLEVEL, meta.get_permlevel_access("read", user=PM_USER))
+				# The exact margin moved higher still, to Finance's level ([P3-143]).
+				self.assertGreaterEqual(meta.get_field(field).permlevel, ESTIMATE_PERMLEVEL)
+				self.assertNotIn(meta.get_field(field).permlevel, pm_levels)
 
 	def test_operations_and_finance_keep_it(self):
 		from vellox_agency.api_guard import ESTIMATE_PERMLEVEL

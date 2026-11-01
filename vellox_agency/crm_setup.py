@@ -269,7 +269,9 @@ QUOTATION_ESTIMATE_FIELDS = [
 		"fieldtype": "Percent",
 		"insert_after": "custom_vellox_vendor_cost",
 		"read_only": 1,
-		"permlevel": ESTIMATE_PERMLEVEL,
+		# Exact margin with visible hours would reveal Finance's rates: Finance and
+		# the Agency Manager only; others see the band ([P3-143], estimate.py).
+		"permlevel": 3,
 		"print_hide": 1,  # internal rates never print for a customer
 	},
 ]

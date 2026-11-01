@@ -494,7 +494,8 @@ def apply_baseline() -> None:
 		setup_quotation_estimate_fields,
 		setup_sales_notifications,
 	)
-	from vellox_agency.estimate import setup_labour_cost_field
+	from vellox_agency.acceptance import _ensure_acceptance_fields
+	from vellox_agency.estimate import report_missing_role_rates, setup_labour_cost_field
 	from vellox_agency.profit import setup_profit_fields
 	from vellox_agency.setup.commercial import setup_commercial_foundation
 	from vellox_agency.setup.offer_builder import setup_offer_builder
@@ -515,6 +516,7 @@ def apply_baseline() -> None:
 	setup_people_fields()
 	setup_quotation_estimate_fields()
 	setup_labour_cost_field()
+	_ensure_acceptance_fields()  # the frozen-margin level ([P3-143]) reaches existing sites
 	setup_sales_notifications()
 	_ensure_client_comment_permission()
 	setup_roles_and_permissions()
@@ -524,6 +526,7 @@ def apply_baseline() -> None:
 	revoke_shares_beyond_jobs()
 	_report_lead_routing()
 	_report_missing_hrms()
+	report_missing_role_rates()
 
 
 def _report_missing_hrms() -> None:

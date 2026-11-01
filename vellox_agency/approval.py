@@ -52,8 +52,13 @@ def required_approver_role(doc) -> str | None:
 APPROVAL_FIELDS = ("custom_vellox_approval_status", "custom_vellox_approved_by", "custom_vellox_approval_terms")
 
 
-def _commercial_terms(doc) -> str:
-	"""Fingerprint of what an approval covers: a change to any of these re-opens it."""
+def _commercial_terms(doc, by_person: bool = False) -> str:
+	"""Fingerprint of what an approval covers: a change to any of these re-opens it.
+
+	With by_person, the fingerprint of what a person edits: the margin is replaced
+	by the estimate it comes from, so Finance changing a role rate does not make
+	whoever saves next a maker of the terms ([P3-143]).
+	"""
 	terms = {
 		"party": [doc.get("quotation_to"), doc.get("party_name")],
 		"currency": [doc.get("currency"), flt(doc.get("conversion_rate"), 9)],
@@ -65,6 +70,9 @@ def _commercial_terms(doc) -> str:
 		"margin": flt(doc.get("custom_vellox_estimated_margin"), 2),
 		"discount": _discount_percent(doc),
 	}
+	if by_person:
+		del terms["margin"]
+		terms["estimate"] = [doc.get("custom_vellox_estimate_hours"), flt(doc.get("custom_vellox_vendor_cost"), 2)]
 	return hashlib.sha256(json.dumps(terms, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -74,11 +82,11 @@ def _set_approval(doc, status: str, approved_by: str | None, terms: str | None) 
 	doc.custom_vellox_approval_terms = terms
 
 
-def _stamp_terms_setter(doc, terms: str) -> None:
+def _stamp_terms_setter(doc) -> None:
 	"""Remember everyone who changed the commercial terms; a value sent by a client is dropped."""
 	before = None if doc.is_new() else doc.get_doc_before_save()
 	setters = _terms_setters(before) if before else []
-	if before is None or _commercial_terms(before) != terms:
+	if before is None or _commercial_terms(before, by_person=True) != _commercial_terms(doc, by_person=True):
 		setters = [*setters, frappe.session.user] if frappe.session.user not in setters else setters
 	doc.custom_vellox_terms_set_by = "\n".join(setters)
 
@@ -121,7 +129,7 @@ def stamp_approval_on_validate(doc, method=None) -> None:
 			_set_approval(doc, "Pending", None, None)
 
 	terms = _commercial_terms(doc)
-	_stamp_terms_setter(doc, terms)
+	_stamp_terms_setter(doc)
 	if doc.flags.vellox_approving:
 		# Totals are recalculated on save; the approver must cover the tier they produce.
 		required = required_approver_role(doc)
@@ -137,9 +145,21 @@ def stamp_approval_on_validate(doc, method=None) -> None:
 		_set_approval(doc, "Pending", None, None)
 
 
+def _missing_rates_message(doc) -> str | None:
+	from vellox_agency.estimate import missing_rates
+
+	if missing := missing_rates(doc):
+		return _("Finance has not set a cost rate for {0} yet, so the margin is unknown.").format(
+			", ".join(frappe.bold(role) for role in missing)
+		)
+	return None
+
+
 def gate_submission(doc, method=None) -> None:
 	if doc.doctype != "Quotation":
 		return
+	if message := _missing_rates_message(doc):
+		frappe.throw(message, frappe.ValidationError, title=_("Cost rate missing"))
 	if required_approver_role(doc) is None:
 		return
 	if doc.custom_vellox_approval_status != "Approved":
@@ -164,6 +184,8 @@ def _approval_refusal(doc) -> tuple[str, type[Exception]] | None:
 		return _("This quotation is within the auto-approved band."), frappe.ValidationError
 	if doc.get("custom_vellox_approval_status") == "Approved":
 		return _("This quotation is already approved."), frappe.ValidationError
+	if message := _missing_rates_message(doc):
+		return message, frappe.ValidationError
 	if not _is_approver(required):
 		return _("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError
 	if _is_maker(doc):
