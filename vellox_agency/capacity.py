@@ -25,6 +25,9 @@ template steps -> hours per role (est_days x 8) x win probability, spread
 evenly over the template's duration from the expected close date. It is a
 separate line by role and never counts as overbooking.
 
+Utilization (section 4, [P4-33]): billable hours = submitted timesheet rows
+marked billable; utilization % = billable hours / available hours x 100.
+
 Weeks run Monday to Sunday. Each person's calendar is read once per request,
 however many weeks are asked for.
 """
@@ -34,6 +37,7 @@ import math
 import frappe
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
 from frappe import _
+from frappe.query_builder.functions import Date, Sum
 from frappe.utils import add_days, date_diff, flt, getdate
 
 MAX_WEEKS = 104
@@ -106,7 +110,9 @@ def _leave_by_day(employee: str, start, end) -> dict:
 		fields=["from_date", "to_date", "half_day", "half_day_date"],
 	):
 		half_day = getdate(row.half_day_date) if row.half_day and row.half_day_date else None
-		for day in _days(max(getdate(row.from_date), getdate(start)), min(getdate(row.to_date), getdate(end))):
+		for day in _days(
+			max(getdate(row.from_date), getdate(start)), min(getdate(row.to_date), getdate(end))
+		):
 			leave[day] = min(1, leave.get(day, 0) + (0.5 if day == half_day else 1))
 	return leave
 
@@ -159,6 +165,28 @@ def _booked_in_week(bookings: list, week: list, workdays: set) -> float:
 	return total
 
 
+def _billable_by_date(employee: str, start, end) -> dict:
+	"""Submitted billable timesheet hours per day, by the row's start time."""
+	ts = frappe.qb.DocType("Timesheet")
+	row = frappe.qb.DocType("Timesheet Detail")
+	day = Date(row.from_time)
+	sums = (
+		frappe.qb.from_(row)
+		.join(ts)
+		.on(row.parent == ts.name)
+		.select(day, Sum(row.hours))
+		.where(
+			(ts.employee == employee)
+			& (ts.docstatus == 1)
+			& (row.is_billable == 1)
+			& (row.from_time >= getdate(start))
+			& (row.from_time < add_days(end, 1))
+		)
+		.groupby(day)
+	).run()
+	return {getdate(d): flt(hours) for d, hours in sums}
+
+
 def _first_monday(from_day):
 	day = getdate(from_day)
 	return add_days(day, -day.weekday())
@@ -176,6 +204,7 @@ def weekly_capacity(employee: str, from_day, weeks: int) -> list[dict]:
 	last = add_days(first, 7 * weeks - 1)
 	days, person = _working_days_by_date(employee, first, last)
 	bookings = _bookings(employee, first, last)
+	billable = _billable_by_date(employee, first, last)
 	# Working days ignoring leave and employment dates: they weigh bookings only.
 	workdays = set()
 	if bookings:
@@ -188,6 +217,7 @@ def weekly_capacity(employee: str, from_day, weeks: int) -> list[dict]:
 		working = sum(days[d] for d in week)
 		hours = working * flt(person.daily_hours)
 		confirmed = round(_booked_in_week(bookings, week, workdays), 2)
+		billable_hours = round(sum(billable.get(d, 0) for d in week), 2)
 		result.append(
 			{
 				"week_start": week_start,
@@ -197,6 +227,8 @@ def weekly_capacity(employee: str, from_day, weeks: int) -> list[dict]:
 				"confirmed_hours": confirmed,
 				"free_hours": max(0, round(hours - confirmed, 2)),
 				"overbooked_hours": max(0, round(confirmed - hours, 2)),
+				"billable_hours": billable_hours,
+				"utilization": round(billable_hours / hours * 100, 2) if hours else None,
 			}
 		)
 	return result
@@ -280,7 +312,9 @@ def likely_demand(from_day, weeks: int) -> dict[str, list[dict]]:
 					if 0 <= offset < duration_weeks:
 						row[n] += per_week
 	return {
-		role: [{"week_start": w, "likely_hours": round(h, 2)} for w, h in zip(week_starts, hours, strict=True)]
+		role: [
+			{"week_start": w, "likely_hours": round(h, 2)} for w, h in zip(week_starts, hours, strict=True)
+		]
 		for role, hours in demand.items()
 	}
 

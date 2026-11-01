@@ -480,6 +480,7 @@ def apply_baseline() -> None:
 		setup_quotation_estimate_fields,
 		setup_sales_notifications,
 	)
+	from vellox_agency.profit import setup_profit_fields
 	from vellox_agency.setup.commercial import setup_commercial_foundation
 	from vellox_agency.setup.people import setup_people_fields
 	from vellox_agency.setup.roles_rates import setup_delivery_roles
@@ -502,6 +503,7 @@ def apply_baseline() -> None:
 	_ensure_client_comment_permission()
 	setup_roles_and_permissions()
 	setup_delivery_roles()
+	setup_profit_fields()
 	revoke_shares_beyond_jobs()
 	_report_lead_routing()
 	_report_missing_hrms()
