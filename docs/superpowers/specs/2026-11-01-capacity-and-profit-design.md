@@ -1,0 +1,203 @@
+# Team Capacity and Project Profit — Design
+
+**Card:** [P4-29] · **Date:** 2026-11-01 · **Status:** approved by the owner, 2026-11-01
+**Unblocks:** [P4-102] Frappe HR · [P4-30] staff calendars · [P4-31] roles and rates ·
+[P4-32] bookings and overbooking · [P4-33] budget, forecast and profit
+**Builds on:** Lead-to-Project design (practice templates, estimate panel, frozen
+expected margin), access by job ([P3-140]), money data for Finance and the
+Agency Manager only ([P3-142])
+
+## 1. Purpose and owner decisions
+
+One auditable model for who is available, who is booked on what, how busy the
+team is, and what each project really earns. Standard ERPNext and Frappe HR
+records are the source of truth; Vellox adds only what they lack.
+
+Owner decisions (2026-11-01):
+
+| # | Question | Decision |
+|---|---|---|
+| D1 | Who does delivery work | Employees **and** freelancers, both recorded in Frappe HR (HRMS) with working days, holidays and leave |
+| D2 | Cost per hour | **Finance sets it per person**; a default per role fills gaps |
+| D3 | How clients pay | **Mostly fixed price.** A rate card per role is used to estimate and to measure profit, not to invoice |
+| D4 | Utilization target | **75 %** billable, the same for everyone unless changed per person |
+| D5 | Deals not yet won | Shown as a **separate "likely" line**, never mixed into confirmed numbers |
+| D6 | Office overhead | **Left out** of project profit (contribution margin) |
+| D7 | Currency | **USD**, each amount converted at the exchange rate **of its own date** (the book currency itself stays open on [P5A-103]) |
+| D8 | Forecasting overruns | **Cost so far + PM's estimate of remaining hours**, updated weekly |
+
+## 2. Records (sources of truth)
+
+| Concept | Record | Vellox addition |
+|---|---|---|
+| Person (employee or freelancer) | **Employee**. Freelancers get Employment Type "Contract" (a field Frappe HR adds; to check once HRMS is installed in P4-102) | `custom_vellox_daily_hours` (default 8), `custom_vellox_utilization_target` (default 75), `custom_vellox_seniority` (Junior / Mid / Senior) |
+| Delivery role | ERPNext **Designation** on the Employee; the same names as the practice-step `default_role` (Designer, Developer, Strategist, …) | none |
+| Skills | HRMS **Employee Skill Map** (Skill + proficiency) | none; replaces the prototype `Skill` / `Skill Employee` DocTypes |
+| Working days | **Holiday List** on the Employee, else on the Company | none |
+| Leave | HRMS **Leave Application**, status Approved, including half days | none |
+| Cost and bill rate | ERPNext **Activity Cost** (Employee × Activity Type: `costing_rate`, `billing_rate`); **Activity Type** default rates = the per-role default | Activity Types named after delivery roles |
+| Rate history | **Timesheet** rows keep the rate in force when the time was logged | none; changing a rate never rewrites history |
+| Time | ERPNext **Timesheet** (submitted only), linked to Project and Task | none |
+| Confirmed booking | new **Vellox Resource Allocation** (submittable): Employee, Project, optional Task, from date, to date, hours per week | the only new DocType |
+| Contract value | submitted **Quotation** behind the Project, plus submitted amendment quotations from approved Change Requests | already linked (`custom_vellox_quotation`, change control) |
+| External cost | **Purchase Invoice** and **Expense Claim** lines with the Project set | none |
+| Estimate | the Quotation's estimate panel (hours, rates, vendor cost) and the frozen expected margin on the Project | none |
+| Remaining estimate | `custom_vellox_remaining_hours` on **Task**, updated weekly by the PM | new field |
+
+This supersedes two parts of the older card texts:
+- P4-31's custom "Vellox Rate" and "Vellox Role Profile" records are replaced by
+  standard Activity Cost, Designation and Employee fields (D2). Seniority and
+  target live on the Employee.
+- P4-32's tentative allocations against an Opportunity are replaced by the
+  computed "likely" line (D5). Only confirmed bookings are stored.
+
+## 3. Capacity
+
+For each person and week (Monday–Sunday):
+
+```
+working days      = days in the week − holidays (Holiday List) − approved leave days
+                    (half-day leave counts 0.5)
+available hours   = working days × daily hours
+target hours      = available hours × utilization target / 100
+confirmed hours   = Σ allocation hours/week for allocations overlapping the week,
+                    pro rata for partial weeks
+free hours        = available hours − confirmed hours
+overbooked hours  = max(0, confirmed hours − available hours)
+```
+
+- A person is **overbooked** when confirmed hours > available hours. Saving a
+  booking that causes this warns; it does not block, because managers may
+  overbook on purpose.
+- Freelancers use the same calculation with their own daily hours and Holiday List.
+
+### Likely demand (separate line, D5)
+
+For each open Opportunity with an expected close date:
+
+```
+role hours  = Σ over the opportunity's service items:
+                practice template steps of that role × est_days × 8
+likely hours (role, week) = role hours × win probability (stage %)
+                            spread evenly over the template's total duration,
+                            starting at the expected close date
+```
+
+Likely demand is shown **by role**, not by person, next to confirmed numbers
+("Developers: 120 h free, 60 h likely"). It never counts as overbooking.
+
+## 4. Utilization (actual)
+
+```
+billable hours    = submitted timesheet hours on client projects
+utilization %     = billable hours ÷ available hours × 100
+against target    = utilization % − utilization target
+```
+
+Internal work (projects marked internal, sales support) counts as hours worked
+but not billable.
+
+## 5. Project profit
+
+All amounts in USD at each document's own date (D7). Overhead is excluded (D6).
+
+```
+contract value     = Σ submitted quotation net totals for the project
+                     (original + approved change-request amendments)
+time cost to date  = Σ submitted timesheet rows: hours × costing rate in force
+external cost      = Σ Purchase Invoice and Expense Claim amounts for the project
+cost to date       = time cost to date + external cost
+
+remaining cost     = Σ open tasks: remaining hours × the assignee's cost rate
+                     (role default if unassigned)
+                     + quoted vendor cost not yet invoiced
+forecast final cost (EAC) = cost to date + remaining cost
+
+budget             = the quote's estimate: hours × rates + vendor cost
+budget used %      = cost to date ÷ budget × 100
+expected margin %  = (contract value − EAC) ÷ contract value × 100
+margin drift       = expected margin % − frozen expected margin % (from the quote)
+```
+
+Health signal on the project (owner-approved thresholds):
+- **Amber**: margin drift worse than −10 points, or expected margin under 25 %.
+- **Red**: expected margin under 10 %, or EAC above contract value.
+
+Invoiced revenue (from Sales Invoices) is shown beside contract value once
+billing exists (P5); profit uses contract value until then.
+
+## 6. Forecast, committed and actual stay apart
+
+Every report labels its numbers **Actual** (submitted timesheets and invoices),
+**Confirmed** (bookings and the remaining-hours estimate) or **Likely**
+(pipeline). They are never summed into one figure. Every figure links to the
+documents behind it.
+
+## 7. Who sees what
+
+Extends access by job ([P3-140], [P3-142]):
+
+| Data | Agency Manager | Finance | Project Manager | Operations | Team member / staff | Sales |
+|---|---|---|---|---|---|---|
+| Availability, bookings, hours | all | all | all | all | own only | none |
+| Likely demand by role | yes | yes | yes | yes | no | yes |
+| Cost rates, salaries, cost and profit amounts | yes | yes | **no** | **no** | no | no |
+| Budget used %, margin drift and health colour (no amounts) | yes | yes | own projects | yes | no | no |
+
+Activity Cost moves from Project Manager / Operations edit access to Finance
+and the Agency Manager only (owner, 2026-11-01), so PMs manage by hours and
+percentages, not money.
+
+## 8. Worked example
+
+Project "Web build" (fixed price), quoted at USD 12,000.
+Budget from the quote's estimate panel:
+
+| Line | Hours × rate | USD |
+|---|---|---|
+| Developer | 120 h × 30 | 3,600 |
+| Designer | 40 h × 25 | 1,000 |
+| PM / QA | 80 h × 32.50 | 2,600 |
+| Vendor (hosting, plugins) | | 600 |
+| **Budget** | | **7,800** |
+
+Frozen expected margin = (12,000 − 7,800) / 12,000 = **35 %**.
+
+After four weeks:
+- Timesheets: Developer 90 h × 30 = 2,700; Designer 35 h × 25 = 875;
+  PM/QA 50 h × 32.50 = 1,625 → time cost 5,200.
+- Vendor invoices: 450. Cost to date = 5,650. Budget used = 5,650 / 7,800 = 72 %.
+- Remaining (PM estimate): Developer 50 h → 1,500; PM/QA 30 h → 975;
+  vendor still to come 150 → remaining cost 2,625.
+- EAC = 5,650 + 2,625 = 8,275. Expected margin = (12,000 − 8,275) / 12,000 = 31 %.
+- Margin drift = 31 − 35 = −4 points → green (amber starts below −10 points or 25 % margin).
+
+Capacity, the same week, Developer "Sara": 5 working days − 1 day leave = 4 ×
+8 h = 32 h available; target 24 h; booked 30 h on Web build + 8 h elsewhere =
+38 h → overbooked by 6 h (warning). Likely line: an Opportunity for an
+eCommerce build at 60 % with 160 Developer hours over 8 weeks adds
+160 × 0.6 / 8 = 12 likely Developer hours per week, shown separately.
+
+## 9. Implementation plan (cards)
+
+1. **[P4-102] Frappe HR**: install HRMS everywhere and make it a required app; CI installs it.
+2. **[P4-30] People and calendars**: Employee fields (daily hours, target,
+   seniority), Holiday Lists, Leave Applications, freelancers as Contract
+   employees; the capacity calculation of §3 with tests (holidays, half-day leave).
+3. **[P4-31] Roles and rates**: Designations matching practice-step roles;
+   Activity Types per role with default rates; Activity Cost per person;
+   Employee Skill Map; access per §7; retire prototype Skill / Capacity Plan DocTypes.
+4. **[P4-32] Bookings**: Vellox Resource Allocation, overbooking warning, the
+   weekly capacity view (confirmed and free), and the likely line of §3.
+5. **[P4-33] Budget, forecast and profit**: Task remaining hours, the formulas of §5
+   in USD per D7, health signal, utilization report (§4), drill-down to documents.
+
+Each card is test-first, with the worked example of §8 as a regression test
+where it applies.
+
+## 10. Owner answers to the open points (2026-11-01)
+
+1. **Health thresholds**: as proposed in §5 (amber below −10 points drift or
+   25 % margin; red below 10 % margin or EAC over contract value).
+2. **Money for PMs and Operations**: hidden. They see hours, budget used %,
+   margin drift in points and the health colour, never amounts or rates.
