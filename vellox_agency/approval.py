@@ -10,7 +10,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, get_datetime
 
 # Who may approve each tier (lead-to-project design, section 5): Operations
 # approves only its own band; anything beyond it needs the Agency Manager.
@@ -130,7 +130,22 @@ def _approval_refusal(doc) -> tuple[str, type[Exception]] | None:
 		return _("This quotation is already approved."), frappe.ValidationError
 	if not _is_approver(required):
 		return _("Only {0} can approve this quotation.").format(frappe.bold(required)), frappe.PermissionError
+	# The maker does not approve their own quote (owner, 2026-11-01, [P3-144]).
+	if doc.get("owner") == frappe.session.user and frappe.session.user != "Administrator":
+		return (
+			_("You made this quotation, so someone else in {0} must approve it.").format(frappe.bold(required)),
+			frappe.PermissionError,
+		)
 	return None
+
+
+def _is_version_seen(doc, seen) -> bool:
+	if not isinstance(seen, str) or not seen:
+		return False
+	try:
+		return get_datetime(seen) == get_datetime(doc.modified)
+	except (ValueError, TypeError):
+		return False
 
 
 def can_approve(doc) -> bool:
@@ -165,12 +180,24 @@ def add_quotation_actions(doc, method=None) -> None:
 
 
 @frappe.whitelist(methods=["POST"])
-def approve_quotation(quotation: str):
+def approve_quotation(quotation: str, seen: str | None = None):
+	"""Approve the quotation as the approver last saw it.
+
+	`seen` is the `modified` time of the version on the approver's screen; a
+	quote changed since then is refused, so nobody approves terms they have not
+	read ([P3-144]).
+	"""
 	doc = frappe.get_doc("Quotation", quotation, for_update=True)
 	doc.check_permission("submit")
 	if refusal := _approval_refusal(doc):
 		message, exc = refusal
 		frappe.throw(message, exc)
+	if not _is_version_seen(doc, seen):
+		frappe.throw(
+			_("This quotation changed since you opened it. Reload it and review the changes before approving."),
+			frappe.ValidationError,
+			title=_("Quotation changed"),
+		)
 	doc.custom_vellox_approval_status = "Approved"
 	doc.custom_vellox_approved_by = frappe.session.user
 	doc.flags.vellox_approving = True

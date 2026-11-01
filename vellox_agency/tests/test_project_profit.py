@@ -115,7 +115,7 @@ class _ProfitCase(FrappeTestCase):
 		quote.custom_vellox_vendor_cost = vendor
 		quote.insert(ignore_permissions=True)
 		if quote.custom_vellox_approval_status != "Approved":
-			approve_quotation(quote.name)
+			approve_quotation(quote.name, seen=str(frappe.db.get_value("Quotation", quote.name, "modified")))
 		quote = frappe.get_doc("Quotation", quote.name)
 		quote.submit()
 		return quote

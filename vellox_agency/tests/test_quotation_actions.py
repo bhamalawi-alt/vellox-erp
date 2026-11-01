@@ -173,7 +173,7 @@ class TestApprovalGate(_JobUsersCase):
 		from vellox_agency.approval import approve_quotation
 
 		with self.set_user(self.users[job]):
-			return approve_quotation(name)
+			return approve_quotation(name, seen=str(frappe.db.get_value("Quotation", name, "modified")))
 
 	def test_editing_the_approval_fields_does_not_approve(self):
 		quote = _manager_tier_quote()
@@ -299,3 +299,47 @@ class TestApprovalGate(_JobUsersCase):
 		doc.save(ignore_permissions=True)
 		self.assertEqual(required_approver_role(doc), "Agency Manager")
 		self._assert_reopened(quote.name)
+
+
+class TestApprovalSafeguards(_JobUsersCase):
+	"""[P3-144]: the maker does not approve their own quote; approve only what you saw."""
+
+	def _approve(self, job, name, seen="current"):
+		from vellox_agency.approval import approve_quotation
+
+		if seen == "current":
+			seen = str(frappe.db.get_value("Quotation", name, "modified"))
+		with self.set_user(self.users[job]):
+			return approve_quotation(name, seen=seen)
+
+	def test_the_maker_cannot_approve_their_own_quote(self):
+		from vellox_agency.approval import quotation_actions
+
+		with self.set_user(self.users["Operations"]):
+			quote = _ops_tier_quote()
+			self.assertFalse(quotation_actions(frappe.get_doc("Quotation", quote.name))["can_approve"])
+		with self.assertRaisesRegex(frappe.PermissionError, "someone else"):
+			self._approve("Operations", quote.name)
+		self._approve("Agency Manager", quote.name)
+		self.assertEqual(
+			frappe.db.get_value("Quotation", quote.name, "custom_vellox_approved_by"), self.users["Agency Manager"]
+		)
+
+	def test_a_quote_changed_since_it_was_opened_is_not_approved(self):
+		quote = _ops_tier_quote()
+		seen = str(frappe.db.get_value("Quotation", quote.name, "modified"))
+		doc = frappe.get_doc("Quotation", quote.name)
+		doc.terms = "Changed by someone else"
+		doc.save(ignore_permissions=True)
+		with self.assertRaisesRegex(frappe.ValidationError, "changed"):
+			self._approve("Operations", quote.name, seen=seen)
+		self.assertNotEqual(frappe.db.get_value("Quotation", quote.name, "custom_vellox_approval_status"), "Approved")
+
+	def test_approving_needs_the_version_that_was_seen(self):
+		quote = _ops_tier_quote()
+		for seen in (None, "", "not a date"):
+			with self.subTest(seen=seen):
+				with self.assertRaises(frappe.ValidationError):
+					self._approve("Operations", quote.name, seen=seen)
+		self._approve("Operations", quote.name)
+		self.assertEqual(frappe.db.get_value("Quotation", quote.name, "custom_vellox_approval_status"), "Approved")
