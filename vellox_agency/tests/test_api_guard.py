@@ -335,6 +335,10 @@ class TestReviewFindings(_GuardCase):
 				"creation",
 			),
 			"portal list": lambda: api_guard.get_list_data("Project", total_costing_amount=5200),
+			"portal page": lambda: api_guard.get_portal_list("Project", total_costing_amount=5200),
+			"report add column": lambda: api_guard.get_data_for_custom_field(
+				"Project", "percent_complete + total_costing_amount"
+			),
 			"dashboard chart": lambda: api_guard.get_dashboard_chart(
 				chart=json.dumps(
 					{
@@ -406,3 +410,79 @@ class TestEveryFilteringMethodIsReviewed(FrappeTestCase):
 		from vellox_agency.api_guard import unreviewed_filtering_methods
 
 		self.assertEqual(unreviewed_filtering_methods(), [])
+
+
+class TestSecondReview(_GuardCase):
+	"""Routes found in the second P4-34 review."""
+
+	def test_searching_on_a_hidden_field_is_refused(self):
+		from vellox_agency import api_guard
+
+		with self.set_user(PM_USER):
+			for call in (
+				lambda: api_guard.query_task("Task", "1", "total_costing_amount", 0, 10, {}),
+				lambda: api_guard.search_link("Task", "1", searchfield="total_costing_amount"),
+				lambda: api_guard.search_widget("Task", "1", searchfield="TOTAL_COSTING_AMOUNT"),
+			):
+				with self.assertRaises(frappe.PermissionError):
+					call()
+			self.assertIsInstance(api_guard.query_task("Task", "", "subject", 0, 10, {}), list | tuple)
+
+	def test_sorting_or_grouping_by_a_hidden_field_is_refused_in_any_case(self):
+		from vellox_agency import api_guard
+
+		with self.set_user(PM_USER):
+			for kwargs in (
+				{"order_by": "TOTAL_COSTING_AMOUNT desc"},
+				{"order_by": "modified desc, total_costing_amount asc"},
+				{"group_by": "Total_Costing_Amount"},
+			):
+				with self.subTest(**kwargs):
+					with self.assertRaises(frappe.PermissionError):
+						api_guard.get_list("Project", fields=["name"], **kwargs)
+			frappe.local.form_dict = frappe._dict(
+				doctype="Project", fields=json.dumps(["name"]), order_by="TOTAL_COSTING_AMOUNT desc"
+			)
+			with self.assertRaises(frappe.PermissionError):
+				api_guard.reportview_get()
+			self.assertIsInstance(
+				api_guard.get_list("Project", fields=["name"], order_by="modified desc"), list
+			)
+
+	def test_joined_table_aliases_are_resolved(self):
+		from vellox_agency.api_guard import refuse_hidden_fields
+
+		with self.set_user(PM_USER):
+			for field in (
+				"`tabProject_1`.percent_complete + `tabProject_1`.total_costing_amount as x",
+				"parent_project.percent_complete + parent_project.total_costing_amount as x",
+				"`tabNo Such Table`.a + `tabNo Such Table`.b as x",
+			):
+				with self.subTest(field=field):
+					with self.assertRaises(frappe.PermissionError):
+						refuse_hidden_fields("Timesheet", [field], only_formulas=True)
+
+	def test_next_and_previous_need_read_access(self):
+		from vellox_agency import api_guard
+
+		with self.set_user(PM_USER):
+			with self.assertRaises(frappe.PermissionError):
+				api_guard.get_next("Salary Slip", "x", 1)
+
+	def test_documents_returned_as_dicts_are_filtered_too(self):
+		from vellox_agency.api_guard import _filter_response_docs
+
+		with self.set_user(PM_USER):
+			frappe.local.response = frappe._dict(
+				docs=[{"doctype": "Project", "name": "X", "project_name": "X", "total_costing_amount": 5200}]
+			)
+			_filter_response_docs()
+			self.assertFalse(frappe.local.response.docs[0].get("total_costing_amount"))
+
+	def test_the_money_doctypes_cover_every_hidden_field_setting(self):
+		from vellox_agency.api_guard import MONEY_DOCTYPES
+		from vellox_agency.setup.roles_rates import MONEY_FIELDS
+
+		self.assertTrue(
+			{*MONEY_FIELDS, "Quotation", "Project", "Task", "Activity Cost"} <= set(MONEY_DOCTYPES)
+		)

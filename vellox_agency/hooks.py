@@ -384,6 +384,9 @@ override_whitelisted_methods = {
 	"frappe.geo.utils.get_coords": "vellox_agency.api_guard.get_coords",
 	"frappe.utils.goal.get_monthly_goal_graph_data": "vellox_agency.api_guard.get_monthly_goal_graph_data",
 	"frappe.www.list.get_list_data": "vellox_agency.api_guard.get_list_data",
+	"erpnext.projects.utils.query_task": "vellox_agency.api_guard.query_task",
+	"frappe.www.list.get": "vellox_agency.api_guard.get_portal_list",
+	"frappe.desk.query_report.get_data_for_custom_field": "vellox_agency.api_guard.get_data_for_custom_field",
 	# Document methods send the whole document back ([P4-34] review).
 	"run_doc_method": "vellox_agency.api_guard.run_doc_method",
 	"runserverobj": "vellox_agency.api_guard.run_doc_method",

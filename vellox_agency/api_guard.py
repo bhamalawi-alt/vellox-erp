@@ -118,9 +118,36 @@ def refuse_hidden_fields(
 			column_doctype, fieldname = doctype, column.replace("`", "")
 			if "." in fieldname:
 				table, fieldname = fieldname.split(".", 1)
-				column_doctype = table.removeprefix("tab")
+				column_doctype = _table_doctype(doctype, table)
+				if not column_doctype:
+					raise frappe.PermissionError(_("Not permitted to read {0}").format(frappe.bold(column)))
 			if _hidden(column_doctype, fieldname, parent_doctype or doctype):
 				raise frappe.PermissionError(_("Not permitted to read {0}").format(frappe.bold(fieldname)))
+
+
+def _table_doctype(doctype: str, table: str) -> str | None:
+	"""The doctype behind a column prefix: `tabX`, a joined `tabX_1`, or a link or table field."""
+	if table.startswith("tab"):
+		name = table[3:]
+		if frappe.db.exists("DocType", name):
+			return name
+		base = re.sub(r"_\d+$", "", name)  # Frappe names joined link tables `tab<DocType>_<n>`
+		return base if base != name and frappe.db.exists("DocType", base) else None
+	df = frappe.get_meta(doctype).get_field(table)
+	if df and df.fieldtype in ("Link", "Table", "Table MultiSelect") and df.options:
+		return df.options
+	return None
+
+
+def refuse_hidden_order(doctype, *orders, parent=None) -> None:
+	"""Sorting or grouping by a hidden field, in any letter case (Frappe matches exact case only)."""
+	for order in orders:
+		if not isinstance(order, str) or not order.strip():
+			continue
+		parts = [
+			re.sub(r"\s+(asc|desc)\s*$", "", part.strip(), flags=re.IGNORECASE) for part in order.split(",")
+		]
+		refuse_hidden_fields(doctype, [p for p in parts if p], parent)
 
 
 def refuse_hidden_query(
@@ -171,6 +198,7 @@ def get_list(doctype, fields=None, filters=None, or_filters=None, parent=None, *
 	from frappe import client
 
 	refuse_hidden_query(doctype, filters, or_filters, fields, parent)
+	refuse_hidden_order(doctype, kwargs.get("order_by"), kwargs.get("group_by"), parent=parent)
 	return frappe.call(
 		client.get_list,
 		doctype,
@@ -212,6 +240,7 @@ def _refuse_form_dict_filters(doctype: str | None = None) -> None:
 	if doctype:
 		parent = form.get("parent") or form.get("parenttype") or form.get("parent_doctype")
 		refuse_hidden_query(doctype, form.get("filters"), form.get("or_filters"), form.get("fields"), parent)
+		refuse_hidden_order(doctype, form.get("order_by"), form.get("group_by"), parent=parent)
 
 
 @frappe.whitelist()
@@ -272,6 +301,7 @@ def get_filter_dashboard_data(stats, doctype, filters=None):
 def get_next(doctype, value, prev, filters=None, sort_order="desc", sort_field="modified"):
 	from frappe.desk.form import utils
 
+	frappe.has_permission(doctype, "read", throw=True)  # Frappe's get_next checks none
 	refuse_hidden_filters(doctype, filters)
 	refuse_hidden_fields(doctype, [sort_field])
 	return utils.get_next(doctype, value, prev, filters, sort_order, sort_field)
@@ -355,9 +385,23 @@ def run_doc_method(method, docs=None, dt=None, dn=None, arg=None, args=None):
 	try:
 		return handler.run_doc_method(method, docs=docs, dt=dt, dn=dn, arg=arg, args=args)
 	finally:
-		for doc in frappe.response.get("docs") or []:
+		_filter_response_docs()
+
+
+def _filter_response_docs() -> None:
+	"""Strip hidden fields from frappe.response.docs; withhold them all if that fails."""
+	from vellox_agency.client_guard import _readable
+
+	docs = frappe.response.get("docs") or []
+	try:
+		for i, doc in enumerate(docs):
 			if hasattr(doc, "apply_fieldlevel_read_permissions"):
 				doc.apply_fieldlevel_read_permissions()
+			elif isinstance(doc, dict):
+				docs[i] = _readable(doc)
+	except Exception:
+		frappe.log_error(title=_("Vellox API guard failed; documents withheld"))
+		frappe.response.docs = []
 
 
 @frappe.whitelist()
@@ -434,6 +478,29 @@ def get_list_data(
 	)
 
 
+@frappe.whitelist(allow_guest=True)
+def get_portal_list(doctype, txt=None, limit_start=0, limit=20, pathname=None, **kwargs):
+	"""frappe.www.list.get calls get_list_data directly, past its override."""
+	from frappe.www import list as portal_list
+
+	refuse_hidden_fields(doctype, kwargs.get("fields"), only_formulas=True)
+	refuse_hidden_filters(
+		doctype, {key: value for key, value in kwargs.items() if not key.startswith("_") and key != "fields"}
+	)
+	return portal_list.get(
+		doctype, txt=txt, limit_start=limit_start, limit=limit, pathname=pathname, **kwargs
+	)
+
+
+@frappe.whitelist()
+def get_data_for_custom_field(doctype, field, names=None):
+	"""Report view "add column": one column, but it may be a formula."""
+	from frappe.desk import query_report
+
+	refuse_hidden_fields(doctype, [field], only_formulas=True)
+	return query_report.get_data_for_custom_field(doctype, field, names)
+
+
 @frappe.whitelist()
 def get_group_by_count(doctype, current_filters, field):
 	from frappe.desk import listview
@@ -447,6 +514,7 @@ def search_link(doctype, txt, filters=None, **kwargs):
 	from frappe.desk import search
 
 	refuse_hidden_filters(doctype, filters)
+	refuse_hidden_fields(doctype, [kwargs.get("searchfield")] if kwargs.get("searchfield") else None)
 	return frappe.call(search.search_link, doctype, txt, filters=filters, **kwargs)
 
 
@@ -455,7 +523,18 @@ def search_widget(doctype, txt, filters=None, **kwargs):
 	from frappe.desk import search
 
 	refuse_hidden_filters(doctype, filters)
+	refuse_hidden_fields(doctype, [kwargs.get("searchfield")] if kwargs.get("searchfield") else None)
 	return frappe.call(search.search_widget, doctype, txt, filters=filters, **kwargs)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def query_task(doctype, txt, searchfield, start, page_len, filters):
+	"""ERPNext's Task search puts `searchfield` into its SQL on Task, whatever `doctype` says."""
+	from erpnext.projects import utils
+
+	refuse_hidden_fields("Task", [searchfield])
+	return utils.query_task(doctype, txt, searchfield, start, page_len, filters)
 
 
 # REST routes, which call Frappe's functions directly.
@@ -542,13 +621,19 @@ def unreviewed_filtering_methods() -> list[str]:
 					if not any("whitelist" in ast.unparse(d) for d in node.decorator_list):
 						continue
 					params = {a.arg for a in node.args.args + node.args.kwonlyargs}
+					if node.args.kwarg:
+						params.add("filters")  # **kwargs can carry filters (portal lists, tree views)
 					if not params & QUERY_PARAMS:
 						continue
 					body = ast.get_source_segment(source, node) or ""
-					names_money = any(f'"{dt}"' in body or f"'{dt}'" in body for dt in MONEY_DOCTYPES)
+					names_money = any(
+						token in body
+						for dt in MONEY_DOCTYPES
+						for token in (f'"{dt}"', f"'{dt}'", f"`tab{dt}`")
+					)
 					# Link-search queries take `doctype` but read their own fixed table.
 					search_query = {"txt", "searchfield", "page_len"} <= params
-					caller_picks_doctype = bool(params & {"doctype", "doc", "chart"}) and not search_query
+					caller_picks_doctype = bool(params & DOCTYPE_PARAMS) and not search_query
 					if not (names_money or caller_picks_doctype):
 						continue
 					name = f"{module}.{node.name}"
@@ -558,16 +643,37 @@ def unreviewed_filtering_methods() -> list[str]:
 
 
 # Doctypes whose fields Vellox hides from some jobs ([P4-31], [P4-33], [P4-34]).
-MONEY_DOCTYPES = (
-	"Project",
-	"Task",
-	"Timesheet",
-	"Timesheet Detail",
-	"Activity Type",
-	"Activity Cost",
-	"Quotation",
-)
-QUERY_PARAMS = {"filters", "or_filters", "current_filters", "fields", "fieldname", "sort_field", "order_by"}
+def _money_doctypes() -> tuple[str, ...]:
+	from vellox_agency.setup.roles_rates import MONEY_FIELDS
+
+	return tuple(sorted({*MONEY_FIELDS, "Project", "Task", "Activity Cost", "Quotation"}))
+
+
+MONEY_DOCTYPES = _money_doctypes()
+QUERY_PARAMS = {
+	"filters",
+	"or_filters",
+	"current_filters",
+	"fields",
+	"fieldname",
+	"sort_field",
+	"order_by",
+	"group_by",
+	"searchfield",
+	"field",
+	"aggregate_on_field",
+	"columns",
+}
+DOCTYPE_PARAMS = {
+	"doctype",
+	"doc",
+	"chart",
+	"dt",
+	"ref_doctype",
+	"reference_doctype",
+	"document_type",
+	"parent_doctype",
+}
 _FIXED_TABLE = "reads its own fixed tables, none with Vellox-hidden fields"
 REVIEWED_METHODS: dict[str, str] = {
 	"erpnext.accounts.dashboard_chart_source.account_balance_timeline.account_balance_timeline.get": _FIXED_TABLE,
@@ -576,11 +682,30 @@ REVIEWED_METHODS: dict[str, str] = {
 	"hrms.hr.dashboard_chart_source.employees_by_age.employees_by_age.get_data": _FIXED_TABLE,
 	"hrms.hr.dashboard_chart_source.hiring_vs_attrition_count.hiring_vs_attrition_count.get_data": _FIXED_TABLE,
 	"erpnext.controllers.queries.get_project_name": "Project search; reads only the customer and company filter keys",
-	"erpnext.projects.doctype.timesheet.timesheet.get_timesheet": "Timesheet search; reads only the project filter key",
-	"erpnext.projects.utils.query_task": "Task search; ignores filters",
+	"erpnext.projects.doctype.timesheet.timesheet.get_timesheet": (
+		"Timesheet search; reads only the project filter key. Its fixed condition total_billable_amount > 0 "
+		"shows only whether a timesheet is billable, which is accepted"
+	),
 	"frappe.client.get_password": "returns only Password fields, after Frappe's own write-permission check",
 	"frappe.core.doctype.access_log.access_log.make_access_log": "stores the filters in a log; queries nothing",
 	"frappe.custom.doctype.customize_form.customize_form.get_link_filters_from_doc_without_customisations": (
 		"reads DocType metadata, not records"
 	),
+	"erpnext.manufacturing.doctype.bom.bom.get_children": _FIXED_TABLE,
+	"erpnext.manufacturing.doctype.bom_creator.bom_creator.get_children": _FIXED_TABLE,
+	"hrms.hr.doctype.goal.goal.get_children": _FIXED_TABLE,
+	"frappe.desk.form.load.get_filtered_attachments": "queries File records only",
+	"erpnext.projects.doctype.task.task.get_project": (
+		"Project search; the search text is a bound parameter, not a column, and filters are ignored"
+	),
+	"frappe.client.get_single_value": "Single doctypes only; Vellox hides no fields on them",
+	"frappe.desk.treeview.get_all_nodes": (
+		"passes the filters to the named tree method, which goes through these overrides; "
+		"Frappe's and ERPNext's Task tree methods read only fixed keys"
+	),
+	"frappe.desk.treeview.get_children": "reads no caller filters",
+	"frappe.core.doctype.communication.email.make": "sends an email; queries no records with caller filters",
+	"frappe.model.rename_doc.update_document_title": "renames a document; no query with caller filters",
+	"frappe.share.add": "shares a document; no query with caller filters",
+	"hrms.api.upload_base64_file": "uploads a file; no query with caller filters",
 }
