@@ -1,6 +1,6 @@
 # Team Capacity and Project Profit — Design
 
-**Card:** [P4-29] · **Date:** 2026-11-01 · **Status:** draft for owner approval
+**Card:** [P4-29] · **Date:** 2026-11-01 · **Status:** approved by the owner, 2026-11-01
 **Unblocks:** [P4-102] Frappe HR · [P4-30] staff calendars · [P4-31] roles and rates ·
 [P4-32] bookings and overbooking · [P4-33] budget, forecast and profit
 **Builds on:** Lead-to-Project design (practice templates, estimate panel, frozen
@@ -119,7 +119,7 @@ expected margin %  = (contract value − EAC) ÷ contract value × 100
 margin drift       = expected margin % − frozen expected margin % (from the quote)
 ```
 
-Health signal on the project (proposed thresholds, to confirm):
+Health signal on the project (owner-approved thresholds):
 - **Amber**: margin drift worse than −10 points, or expected margin under 25 %.
 - **Red**: expected margin under 10 %, or EAC above contract value.
 
@@ -141,12 +141,12 @@ Extends access by job ([P3-140], [P3-142]):
 |---|---|---|---|---|---|---|
 | Availability, bookings, hours | all | all | all | all | own only | none |
 | Likely demand by role | yes | yes | yes | yes | no | yes |
-| Cost rates, salaries, cost and profit amounts | yes | yes | **no** (proposed) | **no** (proposed) | no | no |
+| Cost rates, salaries, cost and profit amounts | yes | yes | **no** | **no** | no | no |
 | Budget used %, margin drift and health colour (no amounts) | yes | yes | own projects | yes | no | no |
 
-**Proposed:** Activity Cost moves from Project Manager / Operations edit access
-to Finance and the Agency Manager only, so PMs manage by hours and percentages,
-not money. This needs the owner's confirmation.
+Activity Cost moves from Project Manager / Operations edit access to Finance
+and the Agency Manager only (owner, 2026-11-01), so PMs manage by hours and
+percentages, not money.
 
 ## 8. Worked example
 
@@ -195,9 +195,9 @@ eCommerce build at 60 % with 160 Developer hours over 8 weeks adds
 Each card is test-first, with the worked example of §8 as a regression test
 where it applies.
 
-## 10. Open points for the owner
+## 10. Owner answers to the open points (2026-11-01)
 
-1. **Health thresholds** in §5: amber below −10 points drift or 25 % margin;
-   red below 10 % margin or EAC over contract. Keep or change?
-2. **Money visibility for PMs and Operations** (§7): hide cost amounts and rates
-   from them (proposed), or let PMs see their own projects' money?
+1. **Health thresholds**: as proposed in §5 (amber below −10 points drift or
+   25 % margin; red below 10 % margin or EAC over contract value).
+2. **Money for PMs and Operations**: hidden. They see hours, budget used %,
+   margin drift in points and the health colour, never amounts or rates.
