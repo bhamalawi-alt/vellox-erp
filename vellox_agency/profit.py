@@ -33,7 +33,10 @@ REPORTING_CURRENCY = "USD"
 AMBER_MARGIN = 25  # expected margin under this many percent
 AMBER_DRIFT = -10  # or more than this many points below the quote
 RED_MARGIN = 10  # expected margin under this many percent, or forecast over the price
-CHANGE_REQUEST_COUNTED = ("Approved", "Implemented", "Closed")
+# Change requests whose amendment quote counts (owner, 2026-11-01, [P4-35]):
+# Approved and Implemented ones, and Closed ones that were implemented first.
+# A request closed straight from Approved was withdrawn.
+CHANGE_REQUEST_COUNTED = ("Approved", "Implemented")
 CLOSED_TASK_STATUSES = ("Completed", "Cancelled", "Template")
 
 # Read by Operations, Finance and the Agency Manager, not by team members.
@@ -81,6 +84,19 @@ PROFIT_FIELDS = [
 		"insert_after": "custom_vellox_margin_drift",
 	},
 ]
+# Task Remaining Hours feeds the forecast: everyone who sees the task reads it,
+# only Project Managers, Operations and the Agency Manager change it ([P4-35]).
+# Task level 1 holds the money fields ([P4-31]).
+REMAINING_HOURS_PERMLEVEL = 2
+REMAINING_HOURS_READERS = ("Projects User",)
+REMAINING_HOURS_WRITERS = ("Vellox Project Manager", "Vellox Operations", "Agency Manager", "System Manager")
+INTERNAL_FIELD = {
+	"fieldname": "custom_vellox_internal",
+	"label": "Internal Project",
+	"fieldtype": "Check",
+	"insert_after": "custom_vellox_quotation",
+	"description": "Agency work for no client: its hours count as worked, not billable.",
+}
 STORED = (
 	"custom_vellox_profit_signal",
 	"custom_vellox_budget_used",
@@ -91,20 +107,20 @@ STORED = (
 
 def setup_profit_fields() -> None:
 	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-	from frappe.permissions import add_permission, setup_custom_perms, update_permission_property
 
 	fields = [
 		{**field, "read_only": 1, "no_copy": 1, "permlevel": PROFIT_PERMLEVEL} for field in PROFIT_FIELDS
 	]
 	create_custom_fields(
 		{
-			"Project": fields,
+			"Project": [INTERNAL_FIELD, *fields],
 			"Task": [
 				{
 					"fieldname": "custom_vellox_remaining_hours",
 					"label": "Remaining Hours",
 					"fieldtype": "Float",
 					"insert_after": "expected_time",
+					"permlevel": REMAINING_HOURS_PERMLEVEL,
 					"description": "Hours still needed to finish, kept up to date by the project manager.",
 				}
 			],
@@ -112,14 +128,27 @@ def setup_profit_fields() -> None:
 		update=True,
 	)
 	for role in PROFIT_READERS:
-		filters = {"parent": "Project", "role": role, "permlevel": PROFIT_PERMLEVEL, "if_owner": 0}
-		if frappe.db.get_value("Custom DocPerm", filters, "read"):
-			continue
-		setup_custom_perms("Project")
-		if not frappe.db.exists("Custom DocPerm", filters):
-			add_permission("Project", role, PROFIT_PERMLEVEL)
-		update_permission_property("Project", role, PROFIT_PERMLEVEL, "read", 1, validate=False)
+		_grant("Project", role, PROFIT_PERMLEVEL, "read")
+	for role in REMAINING_HOURS_READERS:
+		_grant("Task", role, REMAINING_HOURS_PERMLEVEL, "read")
+	for role in REMAINING_HOURS_WRITERS:
+		_grant("Task", role, REMAINING_HOURS_PERMLEVEL, "read")
+		_grant("Task", role, REMAINING_HOURS_PERMLEVEL, "write")
 	frappe.clear_cache(doctype="Project")
+	frappe.clear_cache(doctype="Task")
+
+
+def _grant(doctype: str, role: str, permlevel: int, right: str) -> None:
+	"""Give `role` `right` at `permlevel` through Custom DocPerm, once."""
+	from frappe.permissions import add_permission, setup_custom_perms, update_permission_property
+
+	filters = {"parent": doctype, "role": role, "permlevel": permlevel, "if_owner": 0}
+	if frappe.db.get_value("Custom DocPerm", filters, right):
+		return
+	setup_custom_perms(doctype)
+	if not frappe.db.exists("Custom DocPerm", filters):
+		add_permission(doctype, role, permlevel)
+	update_permission_property(doctype, role, permlevel, right, 1, validate=False)
 
 
 def profit_signal(expected_margin, margin_drift, forecast_cost, contract_value) -> str:
@@ -293,11 +322,8 @@ def _quotations(projects: dict) -> dict[str, list]:
 	}
 	for row in frappe.get_all(
 		"Vellox Change Request",
-		filters={
-			"project": ["in", list(projects)],
-			"status": ["in", CHANGE_REQUEST_COUNTED],
-			"amendment_quotation": ["is", "set"],
-		},
+		filters={"project": ["in", list(projects)], "amendment_quotation": ["is", "set"]},
+		or_filters=[["status", "in", CHANGE_REQUEST_COUNTED], ["implemented_on", "is", "set"]],
 		fields=["project", "amendment_quotation"],
 	):
 		quote_project[row.amendment_quotation] = row.project

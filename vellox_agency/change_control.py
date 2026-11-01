@@ -31,7 +31,9 @@ def _cr_roles():
 
 def project_team_emails(project: str) -> str:
 	"""Emails of the project's manager and members, for the Change Request decision alert."""
-	users = set(frappe.get_all("Project User", filters={"parent": project, "parenttype": "Project"}, pluck="user"))
+	users = set(
+		frappe.get_all("Project User", filters={"parent": project, "parenttype": "Project"}, pluck="user")
+	)
 	users.add(frappe.db.get_value("Project", project, "custom_vellox_project_manager"))
 	users.discard(None)
 	if not users:
@@ -48,10 +50,18 @@ def validate_change_request(doc, method=None) -> None:
 	# A blank status is Draft, and a new request counts as moving from Draft, so
 	# neither can skip the checks below ([P3-146]).
 	doc.status = doc.status or "Draft"
-	saved = None if doc.is_new() else frappe.db.get_value("Vellox Change Request", doc.name, ["status", "approved_by"], as_dict=True)
+	saved = (
+		None
+		if doc.is_new()
+		else frappe.db.get_value(
+			"Vellox Change Request", doc.name, ["status", "approved_by", "implemented_on"], as_dict=True
+		)
+	)
 	old_status = (saved and saved.status) or "Draft"
-	# approved_by changes only on the save that approves (set below).
+	# approved_by and implemented_on change only on the save that approves or
+	# implements (set below), whatever a client sends.
 	doc.approved_by = saved.approved_by if saved else None
+	doc.implemented_on = saved.implemented_on if saved else None
 
 	if old_status != doc.status:
 		allowed = CR_LEGAL_TRANSITIONS.get(old_status, set())
@@ -64,7 +74,9 @@ def validate_change_request(doc, method=None) -> None:
 		if doc.status == "Approved":
 			# Delivery plan section 8: a Project Manager approves when the price is
 			# unchanged; the Agency Manager approves any request.
-			approvers = ["Agency Manager"] if flt_(doc.price_impact) else ["Vellox Project Manager", "Agency Manager"]
+			approvers = (
+				["Agency Manager"] if flt_(doc.price_impact) else ["Vellox Project Manager", "Agency Manager"]
+			)
 			if not ({"System Manager", *approvers} & _cr_roles()):
 				frappe.throw(
 					_("Only {0} can approve this change request.").format(
@@ -83,6 +95,8 @@ def validate_change_request(doc, method=None) -> None:
 					_("A price-impacting change request needs a SUBMITTED amendment quotation."),
 					frappe.ValidationError,
 				)
+			# Closed after this still counts in project profit ([P4-35]).
+			doc.implemented_on = frappe.utils.nowdate()
 
 
 def shift_schedule_on_approval(doc, method=None) -> None:
