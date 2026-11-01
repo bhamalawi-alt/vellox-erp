@@ -28,6 +28,25 @@ def _user(email, roles):
 	return email
 
 
+def _in_a_fiscal_year(day):
+	"""Clean CI sites have no fiscal year for 2026; add one when it is missing."""
+	from erpnext.accounts.utils import FiscalYearError, get_fiscal_year
+
+	try:
+		get_fiscal_year(day, company="_Test Company")
+	except FiscalYearError:
+		frappe.get_doc(
+			{
+				"doctype": "Fiscal Year",
+				"year": "_Test Vellox FY 2026",
+				"year_start_date": "2026-01-01",
+				"year_end_date": "2026-12-31",
+				"companies": [{"company": "_Test Company"}],
+			}
+		).insert(ignore_permissions=True)
+	return day
+
+
 class _ProfitCase(FrappeTestCase):
 	@classmethod
 	def setUpClass(cls):
@@ -302,6 +321,8 @@ class TestProfitOnProjects(_ProfitCase):
 			{
 				"doctype": "Purchase Invoice",
 				"company": "_Test Company",
+				"posting_date": _in_a_fiscal_year("2026-10-20"),
+				"set_posting_time": 1,
 				"supplier": supplier,
 				"currency": "USD",
 				"credit_to": "Creditors - _TC",
