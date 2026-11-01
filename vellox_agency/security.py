@@ -471,6 +471,7 @@ def apply_baseline() -> None:
 		setup_sales_notifications,
 	)
 	from vellox_agency.setup.commercial import setup_commercial_foundation
+	from vellox_agency.setup.people import setup_people_fields
 	from vellox_agency.setup.practice_templates import setup_practice_templates
 	from vellox_agency.setup.offer_builder import setup_offer_builder
 
@@ -484,6 +485,7 @@ def apply_baseline() -> None:
 	setup_change_request_doctype()
 	setup_delivery_fields()
 	setup_practice_templates()
+	setup_people_fields()
 	setup_quotation_estimate_fields()
 	setup_sales_notifications()
 	_ensure_client_comment_permission()
