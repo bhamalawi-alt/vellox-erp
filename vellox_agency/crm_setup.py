@@ -252,6 +252,7 @@ QUOTATION_ESTIMATE_FIELDS = [
 		"fieldtype": "Small Text",
 		"insert_after": "custom_vellox_technical_proposal",
 		"permlevel": ESTIMATE_PERMLEVEL,
+		"print_hide": 1,  # internal rates never print for a customer
 	},
 	{
 		"fieldname": "custom_vellox_vendor_cost",
@@ -259,6 +260,7 @@ QUOTATION_ESTIMATE_FIELDS = [
 		"fieldtype": "Currency",
 		"insert_after": "custom_vellox_estimate_hours",
 		"permlevel": ESTIMATE_PERMLEVEL,
+		"print_hide": 1,  # internal rates never print for a customer
 	},
 	{
 		"fieldname": "custom_vellox_estimated_margin",
@@ -267,6 +269,7 @@ QUOTATION_ESTIMATE_FIELDS = [
 		"insert_after": "custom_vellox_vendor_cost",
 		"read_only": 1,
 		"permlevel": ESTIMATE_PERMLEVEL,
+		"print_hide": 1,  # internal rates never print for a customer
 	},
 ]
 

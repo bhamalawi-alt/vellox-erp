@@ -371,6 +371,24 @@ override_whitelisted_methods = {
 	"frappe.desk.listview.get_group_by_count": "vellox_agency.api_guard.get_group_by_count",
 	"frappe.desk.search.search_link": "vellox_agency.api_guard.search_link",
 	"frappe.desk.search.search_widget": "vellox_agency.api_guard.search_widget",
+	"frappe.client.get": "vellox_agency.api_guard.get",
+	"frappe.desk.reportview.get_stats": "vellox_agency.api_guard.get_stats",
+	"frappe.desk.reportview.get_filter_dashboard_data": "vellox_agency.api_guard.get_filter_dashboard_data",
+	"frappe.desk.form.utils.get_next": "vellox_agency.api_guard.get_next",
+	"frappe.desk.calendar.get_events": "vellox_agency.api_guard.get_calendar_events",
+	"erpnext.projects.doctype.timesheet.timesheet.get_events": "vellox_agency.api_guard.get_timesheet_events",
+	"frappe.desk.doctype.number_card.number_card.get_result": "vellox_agency.api_guard.get_number_card_result",
+	"frappe.desk.doctype.number_card.number_card.get_percentage_difference": "vellox_agency.api_guard.get_number_card_difference",
+	"frappe.desk.doctype.dashboard_chart.dashboard_chart.get": "vellox_agency.api_guard.get_dashboard_chart",
+	"frappe.client.validate_link": "vellox_agency.api_guard.validate_link",
+	"frappe.geo.utils.get_coords": "vellox_agency.api_guard.get_coords",
+	"frappe.utils.goal.get_monthly_goal_graph_data": "vellox_agency.api_guard.get_monthly_goal_graph_data",
+	"frappe.www.list.get_list_data": "vellox_agency.api_guard.get_list_data",
+	# Document methods send the whole document back ([P4-34] review).
+	"run_doc_method": "vellox_agency.api_guard.run_doc_method",
+	"runserverobj": "vellox_agency.api_guard.run_doc_method",
+	"frappe.handler.run_doc_method": "vellox_agency.api_guard.run_doc_method",
+	"frappe.handler.runserverobj": "vellox_agency.api_guard.run_doc_method",
 }
 
 # REST lists refuse hidden filters; REST create and update return only readable fields ([P4-34]).

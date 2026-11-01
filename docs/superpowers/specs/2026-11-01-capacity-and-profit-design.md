@@ -242,4 +242,6 @@ where it applies.
 9. **Filtering on hidden fields**: refused. Lists, counts, single values,
    sidebar stats and searches (desk and REST) that filter on a field the
    person cannot read return a permission error, so a hidden amount cannot be
-   narrowed down by repeated questions.
+   narrowed down by repeated questions. The same applies to a hidden field
+   named inside a formula in the requested columns, and every route that sends
+   a document back returns only the fields the person may read.

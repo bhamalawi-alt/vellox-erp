@@ -12,6 +12,7 @@
 
 import json
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -238,3 +239,170 @@ class TestQuoteEstimate(_GuardCase):
 					as_dict=True,
 				)
 				self.assertEqual((row.read, row.write), (1, 1))
+
+
+class TestReviewFindings(_GuardCase):
+	"""Routes found in the P4-34 security review."""
+
+	def test_hidden_fields_inside_formulas_are_refused(self):
+		from vellox_agency import api_guard
+
+		with self.set_user(PM_USER):
+			for fields in (
+				["percent_complete + total_costing_amount as x"],
+				["sum(percent_complete + total_costing_amount) as x"],
+				json.dumps(["name", "percent_complete * 0 + `tabProject`.total_costing_amount as x"]),
+			):
+				with self.subTest(fields=fields):
+					with self.assertRaises(frappe.PermissionError):
+						api_guard.get_list("Project", fields=fields)
+			with self.assertRaises(frappe.PermissionError):
+				api_guard.get_value(
+					"Project", "percent_complete + total_costing_amount", filters={"status": "Open"}
+				)
+			self.assertIsInstance(api_guard.get_list("Project", fields=["name", "percent_complete"]), list)
+			# A lone hidden column is left to Frappe, which drops it, so saved layouts keep working.
+			project = frappe.get_doc(
+				{
+					"doctype": "Project",
+					"project_name": f"_Test AG cols {frappe.generate_hash(length=5)}",
+					"company": "_Test Company",
+				}
+			).insert(ignore_permissions=True)
+			project.db_set("total_costing_amount", 5200)
+			rows = api_guard.get_list(
+				"Project", fields=["name", "total_costing_amount"], filters={"name": project.name}
+			)
+			self.assertEqual(rows[0].get("name"), project.name)
+			self.assertNotIn(5200, rows[0].values())
+
+	def test_other_spellings_and_child_fields_are_refused(self):
+		from vellox_agency.api_guard import refuse_hidden_filters
+
+		with self.set_user(PM_USER):
+			with self.assertRaises(frappe.PermissionError):
+				refuse_hidden_filters("Project", {"TOTAL_COSTING_AMOUNT": [">", 5000]})
+			with self.assertRaises(frappe.PermissionError):
+				refuse_hidden_filters(
+					"Timesheet", {"costing_amount": [">", 10]}
+				)  # Frappe moves it to the child
+
+	def test_more_methods_refuse_hidden_filters(self):
+		from vellox_agency import api_guard
+
+		hidden = json.dumps(HIDDEN_COST)
+		calls = {
+			"frappe.client.get": lambda: api_guard.get("Project", filters=hidden),
+			"get_stats": lambda: api_guard.get_stats(json.dumps(["status"]), "Project", hidden),
+			"get_filter_dashboard_data": lambda: api_guard.get_filter_dashboard_data(
+				json.dumps([{"name": "status"}]), "Project", hidden
+			),
+			"get_next filter": lambda: api_guard.get_next("Project", "x", 1, filters=hidden),
+			"get_next sort": lambda: api_guard.get_next("Project", "x", 1, sort_field="total_costing_amount"),
+			"calendar filters": lambda: api_guard.get_calendar_events(
+				"Project", "2026-01-01", "2026-12-31", json.dumps({"start": "expected_start_date"}), hidden
+			),
+			"calendar field map": lambda: api_guard.get_calendar_events(
+				"Project", "2026-01-01", "2026-12-31", json.dumps({"title": "total_costing_amount"})
+			),
+			"timesheet calendar": lambda: api_guard.get_timesheet_events(
+				"2026-01-01", "2026-12-31", json.dumps([["Timesheet Detail", "costing_amount", ">", 10]])
+			),
+			"number card": lambda: api_guard.get_number_card_result(
+				json.dumps(
+					{
+						"document_type": "Project",
+						"function": "Sum",
+						"aggregate_function_based_on": "total_costing_amount",
+					}
+				),
+				"[]",
+			),
+			"validate_link": lambda: api_guard.validate_link(
+				"Project", "PROJ-0001", json.dumps(["percent_complete + total_costing_amount as x"])
+			),
+			"map": lambda: api_guard.get_coords("Project", hidden, "coordinates"),
+			"goal chart": lambda: api_guard.get_monthly_goal_graph_data(
+				"t",
+				"Project",
+				"PROJ-0001",
+				"total_costing_amount",
+				"percent_complete",
+				"notes",
+				"Project",
+				"name",
+				"percent_complete",
+				"creation",
+			),
+			"portal list": lambda: api_guard.get_list_data("Project", total_costing_amount=5200),
+			"dashboard chart": lambda: api_guard.get_dashboard_chart(
+				chart=json.dumps(
+					{
+						"document_type": "Project",
+						"chart_type": "Sum",
+						"value_based_on": "total_costing_amount",
+						"based_on": "creation",
+					}
+				)
+			),
+		}
+		with self.set_user(PM_USER):
+			for name, call in calls.items():
+				with self.subTest(method=name):
+					with self.assertRaises(frappe.PermissionError):
+						call()
+
+	def test_document_methods_return_only_readable_fields(self):
+		from vellox_agency.api_guard import run_doc_method
+
+		project = frappe.get_doc(
+			{
+				"doctype": "Project",
+				"project_name": f"_Test AG RDM {frappe.generate_hash(length=5)}",
+				"company": "_Test Company",
+			}
+		).insert(ignore_permissions=True)
+		project.db_set("total_costing_amount", 5200)
+		frappe.local.response = frappe._dict(docs=[])
+		frappe.local.request = SimpleNamespace(method="POST")  # Frappe checks the HTTP method
+		self.addCleanup(delattr, frappe.local, "request")
+		with self.set_user(PM_USER):
+			run_doc_method(
+				"add_comment", dt="Project", dn=project.name, args=json.dumps({"text": "Checking"})
+			)
+		returned = [d for d in frappe.local.response.docs if d.get("name") == project.name]
+		self.assertTrue(returned)
+		self.assertFalse(returned[0].get("total_costing_amount"))
+
+	def test_a_failing_rest_check_refuses_instead_of_sending_everything(self):
+		from vellox_agency import api_guard
+
+		with self.set_user(PM_USER), patch.object(api_guard, "_readable_body", side_effect=RuntimeError):
+			response = _rest("/api/resource/Project", "POST", {"data": {"doctype": "Project", "name": "X"}})
+		self.assertEqual(response.status_code, 500)
+		self.assertNotIn('"name": "X"', response.get_data(as_text=True))
+
+	def test_rest_lists_check_fields_and_child_lists(self):
+		with self.set_user(PM_USER):
+			response = _rest(
+				"/api/resource/Project",
+				"GET",
+				{"data": [{"x": 5200}]},
+				{"fields": json.dumps(["percent_complete + total_costing_amount as x"])},
+			)
+			self.assertEqual(response.status_code, 403)
+		with self.set_user(FIN_USER):
+			response = _rest(
+				"/api/resource/Timesheet Detail",
+				"GET",
+				{"data": []},
+				{"parent": "Timesheet", "filters": json.dumps({"costing_amount": [">", 1]})},
+			)
+			self.assertEqual(response.status_code, 200)  # Finance may read it
+
+
+class TestEveryFilteringMethodIsReviewed(FrappeTestCase):
+	def test_no_unreviewed_method_can_filter_a_money_doctype(self):
+		from vellox_agency.api_guard import unreviewed_filtering_methods
+
+		self.assertEqual(unreviewed_filtering_methods(), [])
