@@ -339,6 +339,7 @@ override_whitelisted_methods = {
 	# Reports follow job access ([P3-147]); see report_guard.
 	"frappe.desk.query_report.run": "vellox_agency.report_guard.run",
 	"frappe.desk.query_report.get_script": "vellox_agency.report_guard.get_script",
+	"frappe.core.doctype.prepared_report.prepared_report.make_prepared_report": "vellox_agency.report_guard.make_prepared_report",
 }
 
 # override_whitelisted_methods = {

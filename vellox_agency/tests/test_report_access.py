@@ -21,6 +21,7 @@ def _as_job(*jobs):
 ROUTES = {
 	"frappe.desk.query_report.run": "vellox_agency.report_guard.run",
 	"frappe.desk.query_report.get_script": "vellox_agency.report_guard.get_script",
+	"frappe.core.doctype.prepared_report.prepared_report.make_prepared_report": "vellox_agency.report_guard.make_prepared_report",
 }
 
 
@@ -63,6 +64,30 @@ class TestWhoRunsWhichReport(FrappeTestCase):
 				self.assertTrue(self._can(report, "Agency Manager"))
 				self.assertTrue(self._can(report))
 
+	def test_an_unknown_report_is_refused_for_job_users(self):
+		self.assertFalse(self._can("No Such Report", "Vellox Sales"))
+
+	def test_a_custom_report_of_a_custom_report_follows_the_original(self):
+		from vellox_agency.report_guard import report_doctype
+
+		def custom(base):
+			doc = frappe.get_doc(
+				{
+					"doctype": "Report",
+					"report_name": f"_Test Custom {frappe.generate_hash(length=6)}",
+					"report_type": "Custom Report",
+					"reference_report": base,
+					"ref_doctype": "Lead",
+					"module": "Vellox Agency",
+					"is_standard": "No",
+					"json": "{}",
+				}
+			).insert(ignore_permissions=True)
+			frappe.db.set_value("Report", doc.name, "ref_doctype", "Note", update_modified=False)
+			return doc.name
+
+		self.assertEqual(report_doctype(custom(custom("Lead Details"))), "Lead")
+
 	def test_a_custom_report_follows_the_report_it_is_based_on(self):
 		from vellox_agency.report_guard import report_doctype
 
@@ -97,6 +122,13 @@ class TestReportRoutes(FrappeTestCase):
 				with patch.object(report_guard, "_original", side_effect=AssertionError("data read")):
 					with self.assertRaisesRegex(frappe.PermissionError, "Lead Details"):
 						getattr(report_guard, name)(**kwargs)
+
+	def test_a_refused_report_cannot_be_queued_to_run_in_the_background(self):
+		from vellox_agency import report_guard
+
+		with _as_job("Vellox Finance"), patch.object(report_guard, "_original", side_effect=AssertionError("queued")):
+			with self.assertRaisesRegex(frappe.PermissionError, "Lead Details"):
+				report_guard.make_prepared_report(report_name="Lead Details", filters="{}")
 
 	def test_an_allowed_report_runs_as_before(self):
 		from vellox_agency import report_guard

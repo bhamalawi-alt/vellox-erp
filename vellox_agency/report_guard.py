@@ -17,17 +17,23 @@ from frappe.desk import query_report
 
 from vellox_agency import security
 
+MAX_REFERENCE_DEPTH = 10
+
 
 def report_doctype(report_name: str) -> str | None:
-	"""The record type a report shows; a Custom Report shows its base report's."""
-	report = frappe.db.get_value(
-		"Report", report_name, ["ref_doctype", "report_type", "reference_report"], as_dict=True
-	)
-	if not report:
-		return None
-	if report.report_type == "Custom Report" and report.reference_report:
-		return frappe.db.get_value("Report", report.reference_report, "ref_doctype")
-	return report.ref_doctype
+	"""The record type a report shows; a Custom Report shows its original report's.
+
+	Follows the whole chain of Custom Reports, as Frappe's get_reference_report does.
+	"""
+	name = report_name
+	for _depth in range(MAX_REFERENCE_DEPTH):
+		report = frappe.db.get_value("Report", name, ["ref_doctype", "report_type", "reference_report"], as_dict=True)
+		if not report:
+			return None
+		if report.report_type != "Custom Report" or not report.reference_report:
+			return report.ref_doctype
+		name = report.reference_report
+	return None
 
 
 def can_run_report(report_name: str, user: str | None = None) -> bool:
@@ -36,7 +42,7 @@ def can_run_report(report_name: str, user: str | None = None) -> bool:
 		return True
 	doctype = report_doctype(report_name)
 	if not doctype:
-		return True  # unknown report: Frappe's own lookup refuses it
+		return False  # unknown, or a reference chain that does not end
 	if security.access_level(doctype, user) in (security.NONE, security.LINK):
 		return False
 	return not (security._team_scoped(user) and doctype in security.TEAM_SCOPED_DOCTYPES)
@@ -66,3 +72,12 @@ def run(report_name: str, **kwargs):
 def get_script(report_name: str):
 	require_report_access(report_name)
 	return _original(query_report.get_script, report_name=report_name)
+
+
+@frappe.whitelist()
+def make_prepared_report(report_name: str, **kwargs):
+	"""Background ("prepared") report runs follow the same rule as direct runs."""
+	from frappe.core.doctype.prepared_report import prepared_report
+
+	require_report_access(report_name)
+	return _original(prepared_report.make_prepared_report, report_name=report_name, **kwargs)
